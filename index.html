@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EF88 Austeyr — Firing Cycle</title>
+<style>
+  :root {
+    --bg: #0d0f12; --panel: #15181d; --line: #262b33; --text: #e7eaee; --muted: #8c95a1;
+    --accent: #e0683c; --accent-2: #f0b24a;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: grid; grid-template-columns: minmax(0, 1fr) 330px; overflow: hidden;
+  }
+  .credit { display: flex; align-items: center; justify-content: center; gap: 10px; border-top: 1px solid var(--line); background: var(--panel);
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px)); font-size: 11px; letter-spacing: .05em; color: var(--muted); margin-top: auto; }
+  .credit span { display: grid; gap: 2px; line-height: 1.3; }
+  .credit img { width: 44px; height: 44px; border-radius: 50%; flex: none; filter: invert(1); }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .webgl-object-shell {
+    position: relative; min-height: 0; overflow: hidden;
+    background: radial-gradient(120% 90% at 50% 35%, #2b3038 0%, #181b20 55%, #0b0d10 100%);
+  }
+  .webgl-object-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #overlay { position: absolute; inset: 0; pointer-events: none; }
+  #overlay svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #overlay line { stroke: rgba(231,234,238,.5); stroke-width: 1; }
+  #overlay circle { fill: #fff; }
+  .lbl {
+    position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 11.5px;
+    padding: 2px 7px; border-radius: 4px; background: rgba(13,15,18,.82); border: 1px solid rgba(255,255,255,.16);
+    will-change: transform;
+  }
+  .hint { position: absolute; left: 14px; top: 10px; color: var(--muted); font-size: 12px; pointer-events: none; }
+  .loading, .err { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); pointer-events: none; }
+  .err, .loading[hidden] { display: none; }
+  .key {
+    position: absolute; right: 12px; top: 10px; display: none; flex-direction: column; gap: 3px; font-size: 12px;
+    padding: 8px 10px; border-radius: 8px; background: rgba(13,15,18,.82); border: 1px solid var(--line); pointer-events: none;
+  }
+  .key.on { display: flex; }
+  .key span { display: flex; align-items: center; gap: 7px; }
+  .key i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+
+  .transport {
+    position: absolute; left: 12px; right: 12px; bottom: 12px; padding: 10px 12px; border-radius: 10px;
+    background: rgba(13,15,18,.86); border: 1px solid var(--line); display: grid; gap: 8px;
+  }
+  .phase { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: baseline; }
+  .phase .pn { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .phase b { font-size: 15px; color: var(--accent-2); letter-spacing: .01em; }
+  .phase p { grid-column: 1 / -1; margin: 2px 0 0; color: #c9ced6; font-size: 13px; min-height: 2.9em; }
+  .scrub { position: relative; padding-top: 12px; }
+  .scrub input { width: 100%; margin: 0; accent-color: var(--accent); display: block; }
+  .ticks { position: absolute; left: 8px; right: 8px; top: 0; height: 10px; }
+  .ticks i { position: absolute; top: 2px; width: 2px; height: 8px; margin-left: -1px; background: #4a525e; border-radius: 1px; }
+  .ticks span { position: absolute; top: 4px; height: 4px; background: var(--accent-2); border-radius: 2px; opacity: .85; }
+  .trow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .btns { display: flex; gap: 6px; }
+  .btns button {
+    width: 40px; height: 36px; border-radius: 8px; border: 1px solid var(--line); background: #1b1f25;
+    display: grid; place-items: center;
+  }
+  .btns button:hover { background: #242a32; }
+  .btns button.play { width: 52px; background: var(--accent); border-color: #f08a60; color: #1a0d07; }
+  .btns svg { width: 15px; height: 15px; fill: currentColor; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { padding: 7px 10px; background: transparent; border: 0; border-right: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed=true] { background: #2a313a; color: var(--text); font-weight: 600; }
+  .ammo { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ammo b { color: var(--text); font-size: 16px; }
+
+  aside {
+    background: var(--panel); border-left: 1px solid var(--line); padding: 16px 16px 20px;
+    overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+  }
+  h1 { font-size: 17px; margin: 0; }
+  .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  section { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 9px; }
+  section > h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 600; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .row output { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .chip { padding: 7px 4px; border-radius: 8px; border: 1px solid var(--line); background: #1b1f25; color: var(--muted); font-size: 13px; }
+  .chip:hover { background: #242a32; color: var(--text); }
+  .chip[aria-pressed=true] { background: #2a313a; color: var(--text); font-weight: 600; }
+  .check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+  ol.plist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  ol.plist button { width: 100%; text-align: left; display: flex; gap: 9px; align-items: center; padding: 4px 8px; border-radius: 6px; border: 0; background: transparent; color: var(--muted); font-size: 13px; }
+  ol.plist button:hover { color: var(--text); }
+  ol.plist .n { width: 16px; text-align: right; font-variant-numeric: tabular-nums; font-size: 11.5px; }
+  ol.plist li.on button { background: #232931; color: var(--text); }
+  ol.plist li.on .n { color: var(--accent-2); }
+  .note { color: var(--muted); font-size: 12px; }
+  .dim { opacity: .45; pointer-events: none; }
+
+  @media (max-width: 860px) {
+    body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 62vh) minmax(0, 1fr); }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+    .hint { display: none; }
+    .transport { left: 6px; right: 6px; bottom: 6px; padding: 8px; gap: 6px; }
+    .phase p { display: none; }
+    .seg button { padding: 7px 8px; }
+    .key { font-size: 11px; padding: 6px 8px; }
+    .lbl { font-size: 10.5px; padding: 1px 5px; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script src="ef88-assets.js?v=2"></script>
+</head>
+<body>
+<div class="webgl-object-shell" id="shell">
+  <canvas class="webgl-object-canvas" data-webgl-3d-object></canvas>
+  <div id="overlay"><svg id="leaders"></svg></div>
+  <div class="hint">Drag to rotate · scroll or pinch to zoom · right-drag to pan</div>
+  <div class="loading" id="loading">Building the rifle body from the photo…</div>
+  <div class="err" id="err">Could not start WebGL or load three.js. Check your internet connection and reload.</div>
+  <div class="key" id="key">
+    <span><i style="background:#9fd0ff"></i>Bolt</span>
+    <span><i style="background:#5d8fd6"></i>Bolt carrier and guide rods</span>
+    <span><i style="background:#7ad1e0"></i>Gas piston</span>
+    <span><i style="background:#4fc3a1"></i>Springs</span>
+    <span><i style="background:#e05a43"></i>Hammer, sear, disconnector</span>
+    <span><i style="background:#e8b23a"></i>Trigger and transfer rods</span>
+    <span><i style="background:#ffe14d"></i>Cartridge case</span>
+    <span><i style="background:#ff7a3d"></i>Propellant gas</span>
+  </div>
+
+  <div class="transport">
+    <div class="phase"><span class="pn" id="phaseNum"></span><b id="phaseTitle"></b><p id="phaseText"></p></div>
+    <div class="scrub">
+      <div class="ticks" id="ticks"></div>
+      <input id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Position in the firing cycle">
+    </div>
+    <div class="trow">
+      <div class="btns">
+        <button id="back" aria-label="Step back one phase" title="Step back one phase"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+        <button id="play" class="play" aria-label="Pause" title="Play / pause (Space)"><svg viewBox="0 0 16 16"><path id="playIcon" d="M4 2h3v12H4zM9 2h3v12H9z"/></svg></button>
+        <button id="fwd" aria-label="Step forward one phase" title="Step forward one phase"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
+      </div>
+      <div class="seg" id="speed" role="group" aria-label="Playback speed">
+        <button data-s="0.25" aria-pressed="false">¼×</button>
+        <button data-s="0.5" aria-pressed="false">½×</button>
+        <button data-s="1" aria-pressed="true">1×</button>
+        <button data-s="2" aria-pressed="false">2×</button>
+      </div>
+      <div class="ammo"><b id="ammoN">30</b> rounds</div>
+    </div>
+  </div>
+</div>
+
+<aside>
+  <div>
+    <h1>EF88 Austeyr</h1>
+    <div class="sub">Firing cycle — photo exterior over a simplified teaching model of the mechanism</div>
+  </div>
+
+  <section>
+    <h2>Body</h2>
+    <div class="seg" id="body" role="group" aria-label="Body">
+      <button data-b="solid" aria-pressed="false">Solid</button>
+      <button data-b="see" aria-pressed="true">See-through</button>
+    </div>
+    <div id="bodyLevel">
+      <div class="row"><label for="bodyT">See-through level</label><output id="bodyO"></output></div>
+      <input id="bodyT" type="range" min="10" max="100" value="66">
+    </div>
+  </section>
+
+  <section>
+    <h2>Fire mode</h2>
+    <div class="seg" id="mode" role="group" aria-label="Fire mode">
+      <button data-mode="semi" aria-pressed="true">Semi-automatic</button>
+      <button data-mode="auto" aria-pressed="false">Automatic</button>
+    </div>
+    <div class="note" id="modeNote"></div>
+  </section>
+
+  <section>
+    <h2>Camera</h2>
+    <div class="grid3" id="views">
+      <button class="chip" data-view="iso" aria-pressed="true">3/4</button>
+      <button class="chip" data-view="right" aria-pressed="false">Right</button>
+      <button class="chip" data-view="left" aria-pressed="false">Left</button>
+      <button class="chip" data-view="top" aria-pressed="false">Top</button>
+      <button class="chip" data-view="action" aria-pressed="false">Action</button>
+      <button class="chip" data-view="gas" aria-pressed="false">Gas system</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Parts</h2>
+    <label class="check"><input type="checkbox" id="coded"> Colour-code moving parts</label>
+    <div class="row"><span>Labels</span></div>
+    <div class="seg" id="labelMode" role="group" aria-label="Labels">
+      <button data-l="step" aria-pressed="true">Current step</button>
+      <button data-l="all" aria-pressed="false">All</button>
+      <button data-l="off" aria-pressed="false">Off</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Phases</h2>
+    <ol class="plist" id="plist"></ol>
+  </section>
+
+  <div class="note">Keys: <b>Space</b> play/pause, <b>←</b> <b>→</b> step one phase. The internal parts are approximate and for illustration only.<br>Photo: KarmaKangaroo, Wikimedia Commons, CC0.</div>
+  <footer class="credit">
+    <img src="badge.png" alt="2HB D Coy 1 PL badge">
+    <span><span>Created by LT Armando Teixeira Pinto</span><span>2HB D-COY 1 PL</span></span>
+  </footer>
+</aside>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+// Units: 1 = 1 cm. +x muzzle, +y up, +z the rifle's right side (ejection side). Bore axis on y = 0, breech face at x = -11.
+const $ = (id) => document.getElementById(id);
+const canvas = document.querySelector("[data-webgl-3d-object]");
+const shellEl = $("shell");
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (t) => { t = clamp(t); return t * t * (3 - 2 * t); };
+const bump = (t, a, b, c) => t <= a ? 0 : t < b ? smooth((t - a) / (b - a)) : 1 - smooth((t - b) / (c - b));
+const mod = (a, n) => ((a % n) + n) % n;
+
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true }); }
+catch (e) { $("err").style.display = "grid"; $("loading").hidden = true; throw e; }
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+scene.environment = envTex;
+
+const camera = new THREE.PerspectiveCamera(30, 1, 1, 900);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 12; controls.maxDistance = 360;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const key = new THREE.DirectionalLight(0xffffff, 2.3);
+key.position.set(30, 70, 60); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -60, right: 60, top: 40, bottom: -40, near: 10, far: 220 });
+key.shadow.bias = -0.0008; key.shadow.normalBias = 0.05;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x8fc4ff, 0.8);
+rim.position.set(-50, 20, -45); scene.add(rim);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.ShadowMaterial({ opacity: 0.32 }));
+ground.rotation.x = -Math.PI / 2; ground.position.y = -20; ground.receiveShadow = true; scene.add(ground);
+
+const rifle = new THREE.Group(); scene.add(rifle);
+
+// ---------- materials ----------
+const coded = [];
+const std = (o) => new THREE.MeshStandardMaterial(o);
+const part = (real, code, o = {}) => { const m = std(Object.assign({ color: real, metalness: 0.85, roughness: 0.36 }, o)); coded.push([m, real, code]); return m; };
+const M = {
+  shell: std({ color: 0xffffff, roughness: 0.78, metalness: 0.06, envMapIntensity: 0.3 }),
+  barrel: std({ color: 0x1b1c1f, roughness: 0.4, metalness: 0.8, transparent: true, opacity: 0.34, depthWrite: false, side: THREE.DoubleSide }),
+  carrier: part(0x5d6268, 0x5d8fd6, { roughness: 0.42 }),
+  bolt: part(0xb9bec4, 0x9fd0ff, { roughness: 0.25, metalness: 0.95 }),
+  rod: part(0xa9aeb4, 0x5d8fd6, { roughness: 0.28, metalness: 0.95 }),
+  spring: part(0x9aa0a6, 0x4fc3a1, { roughness: 0.35 }),
+  piston: part(0x8d9399, 0x7ad1e0, { roughness: 0.3 }),
+  pin: part(0xd5d9dd, 0x9fd0ff, { roughness: 0.2, metalness: 1 }),
+  hammer: part(0xd3ccb8, 0xe05a43, { metalness: 0.05, roughness: 0.55 }),
+  sear: part(0xc2bba6, 0xf08a6a, { metalness: 0.05, roughness: 0.55 }),
+  trigger: part(0x16171a, 0xe8b23a, { metalness: 0.05, roughness: 0.6 }),
+  bar: part(0x8a9096, 0xe8b23a, { roughness: 0.35 }),
+  caseLive: part(0xc9a24a, 0xffe14d, { metalness: 0.95, roughness: 0.28, side: THREE.DoubleSide }),
+  caseSpent: part(0xc9a24a, 0xffe14d, { metalness: 0.95, roughness: 0.28, side: THREE.DoubleSide, transparent: true }),
+  steelDark: std({ color: 0x3c4046, metalness: 0.8, roughness: 0.45 }),
+  pack: std({ color: 0xcfc8b2, metalness: 0, roughness: 0.6, transparent: true, opacity: 0.2, depthWrite: false }),
+  mag: std({ color: 0x5a4c3a, metalness: 0, roughness: 0.3, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide }),
+  magSolid: std({ color: 0x1c1b19, metalness: 0, roughness: 0.7 }),
+  brass: std({ color: 0xc9a24a, metalness: 0.95, roughness: 0.28, side: THREE.DoubleSide }),
+  copper: std({ color: 0xb46a3c, metalness: 0.9, roughness: 0.33, side: THREE.DoubleSide }),
+};
+const glow = (color) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+
+// ---------- geometry helpers ----------
+function box(x0, x1, y0, y1, z0, z1, mat, parent = rifle) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat);
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); parent.add(m); return m;
+}
+function cylX(x0, x1, rBack, rFront, mat, parent = rifle, y = 0, z = 0, seg = 28) {
+  const g = new THREE.CylinderGeometry(rFront, rBack, x1 - x0, seg); g.rotateZ(-Math.PI / 2);
+  const m = new THREE.Mesh(g, mat); m.position.set((x0 + x1) / 2, y, z); parent.add(m); return m;
+}
+function cylZ(r, len, mat, parent, x = 0, y = 0, z = 0) {
+  const g = new THREE.CylinderGeometry(r, r, len, 20); g.rotateX(Math.PI / 2);
+  const m = new THREE.Mesh(g, mat); m.position.set(x, y, z); parent.add(m); return m;
+}
+function latheX(pts, seg = 28) { // pts: [x, r]
+  const g = new THREE.LatheGeometry(pts.map(([x, r]) => new THREE.Vector2(r, x)), seg); g.rotateZ(-Math.PI / 2); return g;
+}
+function helixGeo(turns, r, tube) { // unit length along +x
+  const pts = [], n = turns * 14;
+  for (let i = 0; i <= n; i++) { const t = i / n, a = t * turns * Math.PI * 2; pts.push(new THREE.Vector3(t, r * Math.cos(a), r * Math.sin(a))); }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), n, tube, 6);
+}
+const unitX = (r) => { const g = new THREE.CylinderGeometry(r, r, 1, 16, 1, true); g.rotateZ(-Math.PI / 2); g.translate(0.5, 0, 0); return g; };
+
+// ---------- exterior: relief mesh built from the reference photo and its depth map ----------
+// Measured from reference-photos/ef88-right-side.jpg: 0.10509 cm per depth-map pixel (80.5 cm overall), bore axis on
+// row 120, muzzle tip at column 781.5. Placed so the photo's ejection port and magazine well sit over the mechanism.
+const PHOTO = { W: 800, H: 286, cm: 0.10509138, zMax: 3.2, muzzlePx: 781.5, axisPx: 120, muzzleX: 42.3 };
+const shell = new THREE.Mesh(new THREE.BufferGeometry(), M.shell);
+shell.castShadow = true; shell.renderOrder = 5; shell.visible = false; rifle.add(shell);
+let shellReady = false;
+const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+Promise.all([loadImg(window.EF88_ASSETS.tex), loadImg(window.EF88_ASSETS.depth)]).then(([texImg, depthImg]) => {
+  const { W, H, cm, zMax, muzzlePx, axisPx, muzzleX } = PHOTO;
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g2 = c.getContext("2d", { willReadFrequently: true }); g2.drawImage(depthImg, 0, 0, W, H);
+  const px = g2.getImageData(0, 0, W, H).data;
+  const idx = new Int32Array(W * H).fill(-1), pos = [], uv = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const v = px[(y * W + x) * 4]; if (!v) continue;
+    idx[y * W + x] = pos.length / 3;
+    pos.push((x - muzzlePx) * cm + muzzleX, -(y - axisPx) * cm, (v - 1) / 254 * zMax);
+    uv.push((x + 0.5) / W, 1 - (y + 0.5) / H);
+  }
+  const n = pos.length / 3; // mirror the right half to make the left half
+  for (let i = 0; i < n; i++) { pos.push(pos[3 * i], pos[3 * i + 1], -pos[3 * i + 2]); uv.push(uv[2 * i], uv[2 * i + 1]); }
+  const ind = [], tri = (a, b, c) => { ind.push(a, b, c, c + n, b + n, a + n); };
+  for (let y = 0; y < H - 1; y++) for (let x = 0; x < W - 1; x++) {
+    const a = idx[y * W + x], b = idx[y * W + x + 1], c = idx[(y + 1) * W + x], d = idx[(y + 1) * W + x + 1];
+    const A = a >= 0, B = b >= 0, C = c >= 0, D = d >= 0;
+    if (A && B && C && D) { tri(a, c, b); tri(b, c, d); }
+    else if (A && B && C) tri(a, c, b);
+    else if (B && C && D) tri(b, c, d);
+    else if (A && C && D) tri(a, c, d);
+    else if (A && B && D) tri(a, d, b);
+  }
+  const geo = shell.geometry;
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(new THREE.BufferAttribute(new Uint32Array(ind), 1));
+  geo.computeVertexNormals(); geo.computeBoundingSphere();
+  // The photo was lit from above, so its top edge is a baked highlight. Smeared over the whole top surface it reads
+  // as white, so faces that point up or down are toned down and left to the scene lights.
+  const nrm = geo.attributes.normal, col = new Float32Array(nrm.count * 3);
+  for (let i = 0; i < nrm.count; i++) { const c = 1 - 0.6 * smooth((Math.abs(nrm.getY(i)) - 0.45) / 0.4); col[3 * i] = col[3 * i + 1] = col[3 * i + 2] = c; }
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); M.shell.vertexColors = true;
+  const tex = new THREE.Texture(texImg); tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.needsUpdate = true;
+  M.shell.map = tex; M.shell.needsUpdate = true;
+  shellReady = true; syncBody(); $("loading").hidden = true;
+}).catch(() => { $("loading").textContent = "The rifle photo could not be decoded."; });
+
+// ---------- barrel liner and gas system (inside the photo body) ----------
+const GAS_Y = -1.0, GAS_Z = 1.75, PORT_X = 20.5, MUZZLE_X = 42.3;
+{
+  const b = new THREE.Mesh(latheX([[-12.0, 1.05], [-10.4, 1.05], [-10.4, 0.95], [-4, 0.95], [-3, 0.8], [19, 0.8], [21.6, 0.55], [MUZZLE_X - 0.4, 0.55]]), M.barrel);
+  b.renderOrder = 1; rifle.add(b);
+  cylX(19.6, 21.4, 1.0, 1.0, M.barrel).renderOrder = 1;                                   // gas block
+  cylX(19.2, 21.7, 0.52, 0.52, M.barrel, rifle, GAS_Y, GAS_Z).renderOrder = 1;           // gas cylinder
+  cylX(21.7, 22.4, 0.58, 0.5, M.steelDark, rifle, GAS_Y, GAS_Z, 8);                      // gas regulator
+}
+
+// ---------- operating group: carrier, bolt, guide rods ----------
+const STROKE = 9.8, DWELL = 1.0, FREE = 1.9; // carrier travel: total, before the cam starts turning the bolt, before the bolt moves
+const carrier = new THREE.Group(); rifle.add(carrier);
+box(-24, -13.4, -0.75, 1.35, -1.25, 1.25, M.carrier, carrier);
+box(-22, -14.5, 1.35, 1.6, -0.6, 0.6, M.carrier, carrier);
+box(-15.4, -13.5, -0.05, 0.45, 1.25, 1.27, M.steelDark, carrier);     // cam track
+for (const s of [1, -1]) {
+  const z = s * GAS_Z;
+  box(-15.6, -13.4, -0.75, 0.0, Math.min(s * 1.2, s * 2.25), Math.max(s * 1.2, s * 2.25), M.carrier, carrier);
+  box(-15.6, -13.4, -1.45, -0.75, Math.min(s * 1.35, s * 2.25), Math.max(s * 1.35, s * 2.25), M.carrier, carrier);
+  cylX(-13.4, 19.0, 0.27, 0.27, M.rod, carrier, GAS_Y, z, 16);          // guide rod
+  cylX(8.5, 9.0, 0.42, 0.42, M.rod, carrier, GAS_Y, z, 16);             // spring collar
+  box(-2.5, -2.1, GAS_Y - 0.55, GAS_Y + 0.55, z - 0.55, z + 0.55, M.steelDark); // fixed spring seat
+}
+const firingPin = cylX(-24.7, -23.7, 0.13, 0.13, M.pin, carrier, 0, 0, 12);
+const bolt = new THREE.Group(); rifle.add(bolt);
+cylX(-17.2, -11.0, 0.62, 0.62, M.bolt, bolt);
+for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2, l = box(-11.6, -11.0, -0.15, 0.15, -0.16, 0.16, M.bolt, bolt); l.position.set(-11.3, Math.cos(a) * 0.74, Math.sin(a) * 0.74); l.rotation.x = a; }
+box(-12.3, -11.0, -0.12, 0.12, 0.55, 0.72, M.steelDark, bolt);        // extractor
+const springGeo = helixGeo(20, 0.42, 0.055);
+const retSprings = [1, -1].map((s) => { const m = new THREE.Mesh(springGeo, M.spring); m.position.set(-2.1, GAS_Y, s * GAS_Z); rifle.add(m); return m; });
+const piston = cylX(19.3, 20.9, 0.32, 0.32, M.piston, rifle, GAS_Y, GAS_Z, 16);
+const PISTON_X = piston.position.x;
+
+// ---------- hammer pack in the butt ----------
+const HAM_PIVOT = new THREE.Vector2(-25.9, -3.5), HAM_LEN = 3.77, COCKED = 1.62, FIRED = -0.38;
+box(-36, -25.05, -5.6, -1.0, -1.4, 1.4, M.pack).renderOrder = 1;
+const hammer = new THREE.Group(); hammer.position.set(HAM_PIVOT.x, HAM_PIVOT.y, 0); rifle.add(hammer);
+box(-0.4, 0.4, -0.3, HAM_LEN - 0.3, -0.5, 0.5, M.hammer, hammer);
+box(-0.65, 0.65, HAM_LEN - 0.75, HAM_LEN, -0.5, 0.5, M.hammer, hammer);
+cylZ(0.55, 1.0, M.hammer, hammer);
+cylZ(0.2, 3.0, M.steelDark, hammer);
+// sear: an upright lever whose nose bar sits over the cocked hammer; the transfer rods push the bar rearward
+const SEAR_REST = -0.64, SEAR_LEN = 2.9;
+const sear = new THREE.Group(); sear.position.set(-31.0, -4.9, 0); rifle.add(sear);
+box(-0.22, 0.22, 0, SEAR_LEN, -0.4, 0.3, M.sear, sear);
+cylZ(0.2, 3.5, M.sear, sear, 0, SEAR_LEN, 0);
+cylZ(0.17, 3.0, M.steelDark, sear);
+// disconnector: second catch that holds the hammer while the trigger is still pulled
+const DISC_REST = -0.588;
+const disc = new THREE.Group(); disc.position.set(-30.9, -5.2, 0.55); rifle.add(disc);
+box(-0.16, 0.16, 0, 2.5, -0.2, 0.2, M.sear, disc);
+box(-0.16, 0.5, 2.3, 2.6, -0.2, 0.2, M.sear, disc);
+const HS_A = new THREE.Vector2(-35.2, -3.0);
+box(-35.7, -35.2, -3.6, -2.4, -0.6, 0.6, M.steelDark);
+const hamSpring = new THREE.Mesh(helixGeo(11, 0.34, 0.06), M.spring); rifle.add(hamSpring);
+const hamStrut = cylX(0, 1, 0.1, 0.1, M.steelDark, rifle, 0, 0, 8); hamStrut.geometry.translate(0.5, 0, 0);
+
+// ---------- trigger and transfer rods (positions measured from the photo) ----------
+const TRIG_TRAVEL = 0.75, ROD_Y = -2.4, ROD_Z = 1.55;
+const trig = new THREE.Group(); rifle.add(trig);
+{ const t = box(2.0, 2.6, -6.0, -3.5, -0.45, 0.45, M.trigger, trig); t.rotation.z = 0.1; }
+box(1.9, 2.9, -3.6, -2.1, -1.75, 1.75, M.trigger, trig);
+for (const z of [ROD_Z, -ROD_Z]) cylX(-29.06, 2.4, 0.14, 0.14, M.bar, trig, ROD_Y, z, 12);
+
+// ---------- cartridges ----------
+const caseGeo = latheX([[0, 0], [0, 0.47], [0.12, 0.47], [0.16, 0.4], [0.28, 0.4], [0.34, 0.47], [3.55, 0.47], [3.95, 0.32], [4.47, 0.32], [4.47, 0.27]], 18);
+const bulletGeo = latheX([[4.2, 0], [4.2, 0.285], [4.85, 0.285], [5.2, 0.24], [5.5, 0.15], [5.7, 0.05], [5.73, 0]], 18);
+function makeRound(caseMat) { const g = new THREE.Group(); g.add(new THREE.Mesh(caseGeo, caseMat)); const b = new THREE.Mesh(bulletGeo, M.copper); g.add(b); g.userData.bullet = b; return g; }
+const live = makeRound(M.caseLive); rifle.add(live);
+const spent = new THREE.Mesh(caseGeo, M.caseSpent); spent.visible = false; rifle.add(spent);
+const shot = new THREE.Mesh(bulletGeo, M.copper); shot.visible = false; rifle.add(shot);
+
+// ---------- magazine (translucent polymer; not in the photo) ----------
+const MAG_TOP = -1.3, PITCH = 0.43, MAG_CAP = 29, MAG_X = -18.2;
+const magCurve = (y) => 0.008 * (y + 1) * (y + 1);
+const magRounds = [];
+let follower, magSpring;
+{
+  const s = new THREE.Shape(), ys = []; for (let y = -0.9; y >= -15.61; y -= 1.47) ys.push(y);
+  s.moveTo(-18.55 + magCurve(ys[0]), ys[0]);
+  for (const y of ys) s.lineTo(-18.55 + magCurve(y), y);
+  for (const y of ys.slice().reverse()) s.lineTo(-12.05 + magCurve(y), y);
+  s.closePath();
+  const g = new THREE.ExtrudeGeometry(s, { depth: 2.5, bevelEnabled: false }); g.translate(0, 0, -1.25);
+  const m = new THREE.Mesh(g, M.mag); m.renderOrder = 2; rifle.add(m);
+  const yb = -15.6; box(-18.8 + magCurve(yb), -11.8 + magCurve(yb), yb - 0.45, yb, -1.4, 1.4, M.magSolid).castShadow = true;
+  for (let i = 0; i < MAG_CAP; i++) { const r = makeRound(M.brass); magRounds.push(r); rifle.add(r); }
+  follower = box(-3.0, 3.0, -0.18, 0.18, -1.1, 1.1, M.magSolid);
+  magSpring = new THREE.Mesh(helixGeo(6, 0.75, 0.06), M.spring); magSpring.rotation.z = Math.PI / 2; rifle.add(magSpring);
+}
+
+// ---------- effects ----------
+const GAS_COL = 0xff7a3d;
+const muzzle = new THREE.Group(); muzzle.position.set(MUZZLE_X + 0.3, 0, 0); rifle.add(muzzle);
+{ const c = new THREE.Mesh(new THREE.ConeGeometry(1.6, 7, 16, 1, true), glow(0xffb347)); c.rotation.z = Math.PI / 2; c.position.x = 3.2; muzzle.add(c);
+  muzzle.add(new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), glow(0xffe2a0))); }
+const muzzleLight = new THREE.PointLight(0xffb060, 0, 60); muzzleLight.position.set(MUZZLE_X + 1.5, 0, 0); rifle.add(muzzleLight);
+const primer = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 10), glow(0xffd27a)); primer.position.set(-10.6, 0, 0); rifle.add(primer);
+const boreGas = new THREE.Mesh(unitX(0.3), glow(GAS_COL)); boreGas.position.set(-6.6, 0, 0); rifle.add(boreGas);
+const portGas = new THREE.Mesh(new THREE.SphereGeometry(0.75, 12, 10), glow(GAS_COL)); portGas.position.set(PORT_X, GAS_Y / 2, GAS_Z / 2); rifle.add(portGas);
+const cylGas = new THREE.Mesh(unitX(0.42), glow(GAS_COL)); cylGas.position.set(0, GAS_Y, GAS_Z); rifle.add(cylGas);
+for (const m of [boreGas, portGas, cylGas, primer]) m.renderOrder = 6;
+
+// ---------- the firing cycle as one timeline ----------
+// Everything that moves is a pure function of cycle time t in [0, 1). Nothing is stored between frames except t itself,
+// so pausing, changing speed, stepping and scrubbing can never leave a part out of place.
+const PHASES = [
+  { s: 0.00, title: "Trigger pull", parts: ["trigger", "rods", "sear"],
+    text: "The trigger slides straight back. Two transfer rods carry the movement past the magazine to the hammer pack in the butt and push the sear off the hammer." },
+  { s: 0.09, title: "Hammer release", parts: ["hammer", "hspring", "sear"],
+    text: "Free of the sear, the spring-loaded hammer swings up and forward toward the firing pin." },
+  { s: 0.16, title: "Firing", parts: ["hammer", "pin", "case"],
+    text: "The hammer strikes the firing pin, which runs through the bolt and hits the primer. The propellant ignites." },
+  { s: 0.21, title: "Bullet travel", parts: ["bullet", "case", "bolt"],
+    text: "Expanding gas drives the bullet down the barrel. The bolt stays locked while the pressure is high." },
+  { s: 0.30, title: "Gas tapping", parts: ["gas", "piston", "guide"],
+    text: "The bullet passes the gas port. Gas bleeds into the gas cylinder and drives the short-stroke piston back against the right-hand guide rod, starting the carrier rearward." },
+  { s: 0.38, title: "Unlocking", parts: ["carrier", "bolt"],
+    text: "The bullet has left and the pressure has dropped. The carrier's cam track turns the bolt, and its lugs come out of the locking recesses." },
+  { s: 0.46, title: "Extraction", parts: ["bolt", "case", "hammer"],
+    text: "Bolt and carrier travel back together. The extractor pulls the empty case out of the chamber, and the carrier rides over the hammer and re-cocks it." },
+  { s: 0.56, title: "Ejection", parts: ["case", "carrier", "guide", "disc"],
+    text: "The case clears the chamber and is thrown out of the ejection port. The carrier reaches full recoil with both return springs compressed." },
+  { s: 0.64, title: "Feeding", parts: ["mag", "bolt", "case"],
+    text: "The return springs drive the carrier forward. The bolt face catches the top round and strips it from the magazine." },
+  { s: 0.76, title: "Chambering", parts: ["case", "bolt"],
+    text: "The round rides up into the chamber and the bolt pushes it fully home." },
+  { s: 0.86, title: "Locking", parts: ["bolt", "carrier"],
+    text: "The carrier's last movement turns the bolt back into lock behind the round." },
+  { s: 0.92, title: "Trigger reset", parts: ["trigger", "rods", "sear", "disc"],
+    text: "The trigger and transfer rods return forward. The disconnector hands the hammer back to the sear, ready for the next pull." },
+];
+const T_HAMMER = 0.09, T_FIRE = 0.16, T_BUL0 = 0.175, T_PORT = 0.30, T_MUZ = 0.35, T_RESET = 0.92;
+const BASE_SECONDS = 8; // one cycle at 1x
+
+function track(keys) { // monotone cubic through [t, value] keys: smooth, and never overshoots a key
+  const n = keys.length, xs = keys.map((k) => k[0]), ys = keys.map((k) => k[1]), d = [], m = new Array(n).fill(0);
+  for (let i = 0; i < n - 1; i++) d[i] = (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]);
+  for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : 2 / (1 / d[i - 1] + 1 / d[i]);
+  m[0] = d[0]; m[n - 1] = d[n - 2];
+  return (x) => {
+    if (x <= xs[0]) return ys[0]; if (x >= xs[n - 1]) return ys[n - 1];
+    let i = 0; while (x > xs[i + 1]) i++;
+    const h = xs[i + 1] - xs[i], u = (x - xs[i]) / h, u2 = u * u, u3 = u2 * u;
+    return (2 * u3 - 3 * u2 + 1) * ys[i] + (u3 - 2 * u2 + u) * h * m[i] + (-2 * u3 + 3 * u2) * ys[i + 1] + (u3 - u2) * h * m[i + 1];
+  };
+}
+const carrierD = track([[0, 0], [0.30, 0], [0.38, DWELL], [0.46, FREE], [0.56, 6.4], [0.615, STROKE], [0.64, STROKE], [0.76, 5.0], [0.86, FREE], [0.92, 0], [1, 0]]);
+const pistonD = track([[0, 0], [0.30, 0], [0.355, 1.0], [0.43, 1.0], [0.50, 0], [1, 0]]);
+const solve = (f, target, a, b) => { const up = f(b) > f(a); for (let i = 0; i < 40; i++) { const m = (a + b) / 2; if ((f(m) < target) === up) a = m; else b = m; } return (a + b) / 2; };
+const EJECT_BF = -17;                                                   // bolt-face position where the case is thrown clear
+const T_EJECT = solve(carrierD, FREE - 11 - EJECT_BF, 0.46, 0.615);
+const T_FEED = solve(carrierD, FREE - 11 - (MAG_X + magCurve(MAG_TOP)), 0.64, 0.76); // bolt face reaches the top round
+const BUL_RUN = MUZZLE_X - 4.2 + 11;                                    // bullet travel until its base clears the muzzle
+const BUL_POW = Math.log((PORT_X - 4.2 + 11) / BUL_RUN) / Math.log((T_PORT - T_BUL0) / (T_MUZ - T_BUL0));
+
+const S = {};
+function pose(t, k, loopMode) {
+  const d = carrierD(t);
+  S.t = t; S.d = d;
+  S.bf = -11 - Math.max(0, d - FREE);
+  S.boltRot = 0.5 * clamp((d - DWELL) / (FREE - DWELL));
+  S.pull = t < T_HAMMER ? smooth(t / 0.085) : t < T_RESET ? 1 : 1 - smooth((t - T_RESET) / 0.07);
+  S.sear = S.pull;
+  // the hammer is handed from the disconnector back to the sear at trigger reset (semi) or released as the bolt locks (auto)
+  const hand = smooth((t - (loopMode === "auto" ? 0.86 : T_RESET)) / 0.05);
+  S.disc = smooth((t - 0.50) / 0.06) * (1 - hand);
+  if (t < T_HAMMER) S.hammer = COCKED;
+  else if (t < T_FIRE) { const u = (t - T_HAMMER) / (T_FIRE - T_HAMMER); S.hammer = lerp(COCKED, FIRED, u * u); }
+  else if (t < 0.63) S.hammer = lerp(FIRED, COCKED + 0.1, clamp((d - 0.2) / 3.4));
+  else S.hammer = lerp(lerp(COCKED + 0.1, COCKED + 0.06, smooth((t - 0.64) / 0.06)), COCKED, hand);
+  S.pin = 0.3 * smooth((t - 0.158) / 0.012) * (1 - smooth((t - 0.40) / 0.06));
+  S.prim = bump(t, 0.166, 0.176, 0.215);
+  S.piston = Math.min(pistonD(t), d);
+  // bullet
+  const u = (t - T_BUL0) / (T_MUZ - T_BUL0);
+  S.bulletOn = t >= T_BUL0 && t < 0.44;
+  S.bx = u <= 0 ? -11 : u < 1 ? -11 + BUL_RUN * Math.pow(u, BUL_POW) : -11 + BUL_RUN * (1 + BUL_POW * (u - 1));
+  S.bore = smooth((t - T_BUL0) / 0.02) * (1 - smooth((t - T_MUZ) / 0.09));
+  S.gas = bump(t, T_PORT, T_PORT + 0.02, T_PORT + 0.14);
+  S.flash = bump(t, T_MUZ, T_MUZ + 0.012, T_MUZ + 0.07);
+  S.kick = bump(t, T_MUZ, T_MUZ + 0.02, T_MUZ + 0.14);
+  // cartridge in the chamber, the spent case, the next round and the magazine stack
+  const n0 = MAG_CAP - mod(k, MAG_CAP), used = MAG_CAP - n0, zTop = used % 2 ? 0.27 : -0.27;
+  S.spentOn = false;
+  if (t < T_EJECT) { S.liveOn = true; S.liveBullet = t < T_BUL0; S.lx = S.bf; S.ly = 0; S.lz = 0; S.magN = n0; S.lift = 0; }
+  else {
+    S.spentOn = t < 0.9; S.tau = (t - T_EJECT) * 1.6; S.spentA = 1 - smooth((t - 0.84) / 0.06);
+    if (t < T_FEED) { S.liveOn = false; S.magN = n0; S.lift = 0; }
+    else {
+      const x0 = MAG_X + magCurve(MAG_TOP), rise = smooth((S.bf - x0) / 4.2);
+      S.liveOn = true; S.liveBullet = true; S.lx = Math.max(S.bf, x0); S.ly = lerp(MAG_TOP, 0, rise); S.lz = lerp(zTop, 0, rise);
+      S.magN = n0 - 1; S.lift = 1 - smooth((t - T_FEED - 0.02) / 0.08);
+    }
+  }
+  S.used = used;
+  S.rounds = S.magN + (t < T_BUL0 || t >= T_FEED ? 1 : 0);
+  return S;
+}
+
+function apply() {
+  rifle.position.x = -0.5 * S.kick;
+  carrier.position.x = -S.d;
+  bolt.position.x = S.bf + 11; bolt.rotation.x = S.boltRot;
+  firingPin.position.x = -24.2 + S.pin;
+  piston.position.x = PISTON_X - S.piston;
+  for (const s of retSprings) s.scale.x = Math.max(0.6, 10.6 - S.d);
+  hammer.rotation.z = S.hammer;
+  sear.rotation.z = SEAR_REST + 0.25 * S.sear;
+  disc.rotation.z = DISC_REST + 0.3 * (1 - S.disc);
+  trig.position.x = -TRIG_TRAVEL * S.pull;
+  const bx = HAM_PIVOT.x - 1.7 * Math.sin(S.hammer), by = HAM_PIVOT.y + 1.7 * Math.cos(S.hammer);
+  const len = Math.hypot(bx - HS_A.x, by - HS_A.y), ang = Math.atan2(by - HS_A.y, bx - HS_A.x);
+  for (const m of [hamSpring, hamStrut]) { m.position.set(HS_A.x, HS_A.y, 0); m.rotation.z = ang; m.scale.x = len; }
+
+  live.visible = S.liveOn;
+  if (S.liveOn) { live.position.set(S.lx, S.ly, S.lz); live.userData.bullet.visible = S.liveBullet; }
+  spent.visible = S.spentOn && S.spentA > 0.01;
+  if (spent.visible) {
+    const q = S.tau; spent.position.set(EJECT_BF - 5 * q, 22 * q - 45 * q * q, 36 * q);
+    spent.rotation.set(4 * q, 12 * q, 9 * q); M.caseSpent.opacity = S.spentA;
+  }
+  magRounds.forEach((r, i) => {
+    r.visible = i < S.magN; if (!r.visible) return;
+    const y = MAG_TOP - PITCH * (i + S.lift), abs = i + MAG_CAP - S.magN;
+    r.position.set(MAG_X + magCurve(y), y, abs % 2 ? 0.27 : -0.27);
+  });
+  const fy = MAG_TOP - PITCH * (S.magN + S.lift) - 0.25, floor = -15.6;
+  follower.position.set(-15.3 + magCurve(fy), fy, 0);
+  magSpring.position.set(-15.3 + magCurve((fy + floor) / 2), floor, 0); magSpring.scale.x = Math.max(0.3, fy - floor);
+
+  shot.visible = S.bulletOn; shot.position.x = S.bx;
+  const gasEnd = Math.min(S.bx + 4.2, MUZZLE_X);
+  boreGas.visible = S.bore > 0.01; boreGas.scale.x = Math.max(0.01, gasEnd + 6.6); boreGas.material.opacity = 0.6 * S.bore;
+  portGas.visible = S.gas > 0.01; portGas.material.opacity = 0.8 * S.gas; portGas.scale.setScalar(0.6 + 0.6 * S.gas);
+  cylGas.visible = S.gas > 0.01; cylGas.position.x = 20.9 - S.piston; cylGas.scale.x = 0.8 + S.piston; cylGas.material.opacity = 0.75 * S.gas;
+  muzzle.visible = S.flash > 0.01; muzzle.children.forEach((c) => c.material.opacity = 0.9 * S.flash); muzzle.scale.setScalar(0.4 + 0.8 * S.flash);
+  muzzleLight.intensity = 900 * S.flash;
+  primer.visible = S.prim > 0.01; primer.material.opacity = 0.9 * S.prim; primer.scale.setScalar(0.5 + S.prim);
+}
+
+// ---------- clock ----------
+const clock = { t: 0, k: 0, playing: true, speed: 1, loopMode: "semi", mode: "semi", scrubbing: false };
+const phaseAt = (t) => { let i = PHASES.length - 1; while (i > 0 && t < PHASES[i].s) i--; return i; };
+function advance(dt) {
+  if (!clock.playing || clock.scrubbing) return;
+  let t = clock.t + dt * clock.speed / BASE_SECONDS;
+  if (clock.loopMode === "auto" && clock.mode === "auto" && clock.t < T_RESET && t >= T_RESET) { t = T_HAMMER + (t - T_RESET); clock.k++; }
+  else if (t >= 1) { t -= 1; clock.k++; clock.loopMode = clock.mode; }
+  clock.t = t;
+}
+function seek(t) { clock.t = clamp(t, 0, 0.9999); }
+function stepPhase(dir) {
+  setPlaying(false);
+  const i = phaseAt(clock.t);
+  if (dir > 0) {
+    if (i === PHASES.length - 1) { clock.t = 0; clock.k++; clock.loopMode = clock.mode; } else clock.t = PHASES[i + 1].s;
+  } else if (clock.t - PHASES[i].s > 0.004) clock.t = PHASES[i].s;
+  else if (i === 0) { clock.t = PHASES[PHASES.length - 1].s; clock.k--; }
+  else clock.t = PHASES[i - 1].s;
+}
+const PLAY_D = "M4 2l10 6-10 6z", PAUSE_D = "M4 2h3v12H4zM9 2h3v12H9z";
+function setPlaying(p) {
+  clock.playing = p; $("playIcon").setAttribute("d", p ? PAUSE_D : PLAY_D); $("play").setAttribute("aria-label", p ? "Pause" : "Play");
+}
+
+// ---------- phase UI ----------
+const ticks = $("ticks"), plist = $("plist");
+const band = document.createElement("span"); ticks.appendChild(band);
+PHASES.forEach((p, i) => {
+  const tick = document.createElement("i"); tick.style.left = p.s * 100 + "%"; tick.title = p.title; ticks.appendChild(tick);
+  const li = document.createElement("li");
+  li.innerHTML = `<button type="button"><span class="n">${i + 1}</span><span>${p.title}</span></button>`;
+  li.firstChild.addEventListener("click", () => { seek(p.s); });
+  plist.appendChild(li);
+});
+let shownPhase = -1;
+function showPhase(i) {
+  if (i === shownPhase) return; shownPhase = i;
+  const p = PHASES[i], end = i + 1 < PHASES.length ? PHASES[i + 1].s : 1;
+  $("phaseNum").textContent = `${i + 1} / ${PHASES.length}`; $("phaseTitle").textContent = p.title; $("phaseText").textContent = p.text;
+  band.style.left = p.s * 100 + "%"; band.style.width = (end - p.s) * 100 + "%";
+  [...plist.children].forEach((li, j) => li.classList.toggle("on", j === i));
+}
+
+// ---------- part labels ----------
+const hammerTip = () => [HAM_PIVOT.x - HAM_LEN * Math.sin(S.hammer), HAM_PIVOT.y + HAM_LEN * Math.cos(S.hammer), 0.5];
+const LABELS = {
+  trigger: ["Trigger", () => [2.3 - TRIG_TRAVEL * S.pull, -5.6, 0.45], 52, 34],
+  rods: ["Transfer rods", () => [-7, ROD_Y, ROD_Z], 8, 58],
+  sear: ["Sear", () => { const a = SEAR_REST + 0.25 * S.sear; return [-31 - SEAR_LEN * Math.sin(a), -4.9 + SEAR_LEN * Math.cos(a), 0.3]; }, -58, -40],
+  disc: ["Disconnector", () => [-30.5, -4.3, 0.75], -8, 78],
+  hammer: ["Hammer", hammerTip, 26, 62],
+  hspring: ["Hammer spring", () => [-33.6, -3.05, 0.3], -40, 46],
+  pin: ["Firing pin", () => [-24.6 - S.d + S.pin, 0, 0], -44, -72],
+  carrier: ["Bolt carrier", () => [-19 - S.d, 1.5, 0.6], -4, -92],
+  bolt: ["Rotating bolt", () => [S.bf - 0.5, 0.6, 0.5], 52, -66],
+  guide: ["Guide rod and return spring", () => [3, GAS_Y, GAS_Z], 10, -78],
+  piston: ["Gas piston", () => [PISTON_X - S.piston, GAS_Y, GAS_Z], -34, -62],
+  gas: ["Gas port", () => [PORT_X, -0.5, 0.9], 56, -46],
+  mag: ["Magazine", () => [-13.4, -12.5, 1.25], 72, 16],
+  case: ["Cartridge case", () => S.spentOn ? (spent.visible ? [spent.position.x + 2, spent.position.y, spent.position.z] : null) : S.liveOn ? [S.lx + 2.2, S.ly, S.lz + 0.4] : null, 62, 44],
+  bullet: ["Bullet", () => S.bulletOn && S.bx < MUZZLE_X + 6 ? [S.bx + 5, 0, 0] : null, 0, -44],
+};
+const svg = $("leaders"), overlay = $("overlay");
+for (const k in LABELS) {
+  const div = document.createElement("div"); div.className = "lbl"; div.textContent = LABELS[k][0]; overlay.appendChild(div);
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line"); svg.appendChild(line);
+  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle"); dot.setAttribute("r", 2.2); svg.appendChild(dot);
+  LABELS[k].el = { div, line, dot };
+}
+let labelMode = "step";
+const _v = new THREE.Vector3();
+function updateLabels() {
+  overlay.style.display = labelMode === "off" ? "none" : ""; if (labelMode === "off") return;
+  const w = shellEl.clientWidth, h = shellEl.clientHeight, cur = PHASES[phaseAt(clock.t)].parts, sc = w < 560 ? 0.7 : 1;
+  for (const k in LABELS) {
+    const [, at, ox, oy] = LABELS[k], e = LABELS[k].el, p = (labelMode === "all" || cur.includes(k)) ? at() : null;
+    let vis = !!p, x = 0, y = 0;
+    if (vis) { _v.set(p[0], p[1], p[2]); rifle.localToWorld(_v); _v.project(camera); x = (_v.x * 0.5 + 0.5) * w; y = (-_v.y * 0.5 + 0.5) * h; vis = _v.z < 1 && x > -20 && x < w + 20 && y > -20 && y < h + 20; }
+    e.div.style.display = e.line.style.display = e.dot.style.display = vis ? "" : "none";
+    if (!vis) continue;
+    const lx = x + ox * sc, ly = y + oy * sc;
+    e.div.style.transform = `translate(${lx}px, ${ly}px) translate(-50%, -50%)`;
+    e.line.setAttribute("x1", x); e.line.setAttribute("y1", y); e.line.setAttribute("x2", lx); e.line.setAttribute("y2", ly - Math.sign(oy) * 9);
+    e.dot.setAttribute("cx", x); e.dot.setAttribute("cy", y);
+  }
+}
+
+// ---------- controls ----------
+function pressGroup(group, btn) { [...group.querySelectorAll("button")].forEach((c) => c.setAttribute("aria-pressed", c === btn)); }
+let bodyMode = "see";
+function syncBody() {
+  const solid = bodyMode === "solid", v = +$("bodyT").value, o = solid ? 1 : 1 - v / 100;
+  $("bodyO").textContent = v + "%"; $("bodyLevel").classList.toggle("dim", solid);
+  M.shell.opacity = o; M.shell.depthWrite = solid; shell.visible = shellReady && o > 0.015;
+  if (M.shell.transparent === solid) { M.shell.transparent = !solid; M.shell.needsUpdate = true; }
+}
+$("body").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; bodyMode = b.dataset.b; pressGroup($("body"), b); syncBody(); });
+$("bodyT").addEventListener("input", syncBody);
+
+function syncMode() {
+  $("modeNote").textContent = clock.mode === "auto"
+    ? "Trigger stays held: after locking, the loop goes straight back to hammer release. Takes effect from the next trigger pull."
+    : "One trigger pull and reset per round.";
+}
+$("mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; clock.mode = b.dataset.mode; pressGroup($("mode"), b); syncMode(); });
+$("speed").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; clock.speed = +b.dataset.s; pressGroup($("speed"), b); });
+$("play").addEventListener("click", () => setPlaying(!clock.playing));
+$("back").addEventListener("click", () => stepPhase(-1));
+$("fwd").addEventListener("click", () => stepPhase(1));
+const scrub = $("scrub");
+scrub.addEventListener("pointerdown", () => { clock.scrubbing = true; });
+scrub.addEventListener("input", () => { clock.scrubbing = true; seek(scrub.value / 1000); });
+for (const ev of ["pointerup", "pointercancel", "change", "blur"]) scrub.addEventListener(ev, () => { clock.scrubbing = false; });
+window.addEventListener("keydown", (e) => {
+  if (e.target.matches?.("input[type=range]")) return;
+  if (e.code === "Space") { e.preventDefault(); if (!e.repeat) setPlaying(!clock.playing); }
+  else if (e.code === "ArrowRight") { e.preventDefault(); stepPhase(1); }
+  else if (e.code === "ArrowLeft") { e.preventDefault(); stepPhase(-1); }
+});
+$("coded").addEventListener("change", (e) => {
+  for (const [m, real, code] of coded) m.color.setHex(e.target.checked ? code : real);
+  $("key").classList.toggle("on", e.target.checked);
+});
+$("labelMode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; labelMode = b.dataset.l; pressGroup($("labelMode"), b); });
+
+// ---------- camera presets ----------
+const VIEWS = {
+  iso: { dir: [0.5, 0.26, 1], target: [2, -3, 0], span: [90, 32] },
+  right: { dir: [0, 0.04, 1], target: [2, -3, 0], span: [88, 32] },
+  left: { dir: [0, 0.04, -1], target: [2, -3, 0], span: [88, 32] },
+  top: { dir: [0, 1, 0.001], target: [2, 0, 0], span: [88, 16] },
+  action: { dir: [0.18, 0.14, 1], target: [-21, -2.6, 0], span: [38, 17] },
+  gas: { dir: [0.3, 0.26, 1], target: [15, -0.6, 0], span: [26, 11] },
+};
+let curView = "iso", userMoved = false, fly = null;
+const barH = () => document.querySelector(".transport").offsetHeight + 12;
+function viewPose(name) {
+  const v = VIEWS[name], th = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const usable = Math.max(0.35, 1 - barH() / Math.max(1, shellEl.clientHeight)); // share of the height not under the transport bar
+  const dist = Math.max(v.span[1] / (2 * th * usable), v.span[0] / (2 * th * camera.aspect));
+  const target = new THREE.Vector3(...v.target);
+  return { target, pos: target.clone().add(new THREE.Vector3(...v.dir).normalize().multiplyScalar(dist)) };
+}
+function setView(name, animate) {
+  curView = name; userMoved = false;
+  const to = viewPose(name);
+  if (!animate) { fly = null; controls.target.copy(to.target); camera.position.copy(to.pos); controls.update(); return; }
+  fly = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), to };
+}
+function stepFly(now) {
+  if (!fly) return;
+  const u = smooth((now - fly.t0) / 550);
+  controls.target.lerpVectors(fly.fromT, fly.to.target, u); camera.position.lerpVectors(fly.fromP, fly.to.pos, u);
+  if (u >= 1) fly = null;
+}
+$("views").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; pressGroup($("views"), b); setView(b.dataset.view, true); });
+controls.addEventListener("start", () => { userMoved = true; fly = null; pressGroup($("views"), null); });
+
+function resize() {
+  const w = Math.max(1, shellEl.clientWidth), h = Math.max(1, shellEl.clientHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  camera.setViewOffset(w, h, 0, Math.round(barH() / 2), w, h); // centre the scene in the area above the transport bar
+  camera.updateProjectionMatrix();
+  if (!userMoved) setView(curView, false);
+}
+const ro = new ResizeObserver(resize); ro.observe(shellEl);
+
+// ---------- loop ----------
+let last = performance.now(), rafId = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  advance(dt);
+  pose(clock.t, clock.k, clock.loopMode); apply();
+  showPhase(phaseAt(clock.t));
+  if (!clock.scrubbing) scrub.value = Math.round(clock.t * 1000);
+  $("ammoN").textContent = S.rounds;
+  stepFly(now); controls.update(); renderer.render(scene, camera); updateLabels();
+  rafId = requestAnimationFrame(frame);
+}
+
+resize(); syncBody(); syncMode(); setPlaying(true);
+rafId = requestAnimationFrame(frame);
+window.__sim = { clock, S, PHASES, pose, apply, seek, stepPhase, setPlaying, T_EJECT, T_FEED };
+
+window.addEventListener("pagehide", () => {
+  cancelAnimationFrame(rafId); ro.disconnect(); controls.dispose();
+  scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); }); });
+  envTex.dispose(); pmrem.dispose(); renderer.dispose();
+});
+</script>
+</body>
+</html>
