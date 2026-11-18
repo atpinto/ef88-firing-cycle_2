@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>EF88 Austeyr · Studio edition</title>
+<style>
+:root{color-scheme:dark;--paper:#edece4;--dim:#b0bcb8;--amber:#f2be78;--line:#35403d;--ink:#0d1313;font-family:"Instrument Sans","Helvetica Neue",Arial,sans-serif}
+*{box-sizing:border-box}body{margin:0;color:var(--paper);background:var(--ink)}button,a,input{font:inherit}button,a{touch-action:manipulation}button{cursor:pointer;color:inherit}button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:4px}button:disabled{cursor:default}button{border:0}a{color:inherit}button,header a{-webkit-tap-highlight-color:transparent}[hidden]{display:none!important}
+main{min-height:100vh;min-height:100svh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:72px;padding:12px clamp(18px,3.8vw,72px);background:#101615;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:clamp(20px,2vw,29px);font-weight:570;letter-spacing:-.055em}.brand{display:flex;align-items:center;gap:16px}.edition{font:11px/1.2 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border-left:1px solid var(--line);padding-left:16px}
+.switch{display:flex;gap:3px;padding:3px;border:1px solid #3c4743;border-radius:7px;background:#0a100f}.switch button{padding:8px 13px;border-radius:4px;font-size:13px;background:transparent;color:#b1b9b4}.switch button[aria-pressed=true]{background:#dedfd2;color:#18201c}
+#exterior{flex:1;display:flex;flex-direction:column}.stage{position:relative;isolation:isolate;overflow:hidden;min-height:310px;flex:1 0 auto;height:clamp(350px,calc(100svh - 268px),880px);background:radial-gradient(ellipse at 53% 52%,#304144 0,#1e3033 31%,#112023 59%,#0a1315 86%)}
+.stage[data-light=warm]{background:radial-gradient(ellipse at 53% 52%,#45443b 0,#33372f 31%,#222b26 59%,#121a16 86%)}
+.stage:after{content:"";position:absolute;inset:0;pointer-events:none;border-bottom:1px solid #53615a66;box-shadow:inset 0 -50px 100px -80px #0009}
+#surface,#fallback{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y;z-index:1;cursor:grab}#surface:active,#fallback:active{cursor:grabbing}
+.shadow{position:absolute;left:19%;width:65%;height:5%;bottom:14%;background:#0009;border-radius:50%;filter:blur(16px);pointer-events:none}
+.stage-head{position:absolute;z-index:2;top:clamp(16px,3vw,40px);left:clamp(18px,3.8vw,72px);pointer-events:none}
+.kicker{margin:0 0 8px;color:var(--amber);font:600 10px/1.3 ui-monospace,monospace;text-transform:uppercase;letter-spacing:.17em}
+h2{margin:0;font-size:clamp(24px,3.7vw,58px);font-weight:450;line-height:1.03;letter-spacing:-.065em}
+.hint{position:absolute;left:clamp(18px,3.8vw,72px);bottom:17px;z-index:2;color:#bac5bf;font-size:12px;margin:0;pointer-events:none}
+#status{position:absolute;left:10%;right:10%;top:54%;text-align:center;color:var(--paper);z-index:3}
+.controls{padding:19px clamp(18px,3.8vw,72px) 20px;background:#131b19;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(240px,1.65fr) minmax(180px,1fr) auto;gap:clamp(14px,3.8vw,68px);align-items:center}
+.group-label{display:block;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#abb7af;font-weight:640;margin-bottom:8px}
+.options{display:flex;align-items:stretch;gap:5px;flex-wrap:wrap}.options button,.tour{border:1px solid #45534c;border-radius:5px;background:transparent;font-size:13px;padding:9px 12px;line-height:1.25}.options button:hover,.tour:hover{background:#27332c}.options button[aria-pressed=true]{border-color:#c5b999;background:#303730;color:#fff1d8}
+.light button{display:inline-flex;align-items:center;gap:7px}.swatch{width:10px;height:10px;border-radius:50%;background:#aed4da}.swatch.warm{background:#e0bb80}
+.player{display:grid;gap:5px;min-width:142px}.tour{display:flex;align-items:center;justify-content:center;gap:9px;background:#dfbd87;color:#162019;border-color:#dfbd87;font-weight:620}.tour:hover{background:#f1d29f}.tour span:first-child{font-size:12px}.track{height:4px;border-radius:12px;overflow:hidden;background:#354039}.track i{height:100%;display:block;background:var(--amber);transform:scaleX(0);transform-origin:left}
+footer{display:flex;justify-content:space-between;align-items:center;gap:10px 25px;flex-wrap:wrap;padding:13px clamp(18px,3.8vw,72px);font-size:11px;color:#afb9b1}footer span{line-height:1.45}footer a{text-underline-offset:3px}
+#cycle{display:flex;flex-direction:column;min-height:0;height:calc(100vh - 72px);height:calc(100dvh - 72px)}#cycle iframe{background:#101615;flex:1;width:100%;min-height:200px;border:0}#cycle .frame-link{padding:6px 18px;text-align:right;font-size:11px;color:#acb8b1}
+@media(max-width:820px){.controls{grid-template-columns:1fr auto;gap:16px}.controls .player{grid-column:1/-1;display:flex;align-items:center}.tour{min-width:140px}.track{flex:1}.stage{height:clamp(310px,55svh,680px)}}
+@media(max-width:570px){header{min-height:64px;padding:10px 14px;gap:6px}.brand{display:block}.edition{display:block;border:0;padding:0;margin-top:3px;font-size:9px}.switch button{padding:8px;font-size:12px}.stage{min-height:285px;height:clamp(285px,48svh,570px)}.stage-head{top:20px}.controls{padding:15px 14px;grid-template-columns:1fr;gap:13px}.controls .player{grid-column:auto}.options button{min-height:38px}.group-label{margin-bottom:6px}.hint{font-size:11px}.shadow{bottom:27%;height:4%;filter:blur(10px)}footer{padding:12px 14px;gap:4px}.stage:after{box-shadow:none}#cycle{height:calc(100dvh - 64px)}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand"><h1>EF88 Austeyr</h1><span class="edition">Studio edition</span></div>
+  <nav class="switch" aria-label="View"><button id="exteriorButton" aria-controls="exterior" aria-pressed="true">Exterior</button><button id="cycleButton" aria-controls="cycle" aria-pressed="false">Firing cycle</button></nav>
+</header>
+<section id="exterior" aria-label="Exterior studio">
+  <div class="stage" id="stage" data-light="cool">
+    <div class="stage-head"><p class="kicker">Exterior study</p><h2 id="shotTitle">Three-quarter view</h2></div>
+    <div class="shadow"></div>
+    <canvas id="surface" aria-label="Photo-based relief of the EF88 exterior"></canvas>
+    <canvas id="fallback" aria-label="Side photograph of the EF88 exterior" hidden></canvas>
+    <p id="status" role="status">Loading the exterior photograph…</p>
+    <p class="hint" id="hint">Drag to change the angle</p>
+  </div>
+  <div class="controls">
+    <div><span class="group-label" id="angleLabel">Camera</span><div class="options" role="group" aria-labelledby="angleLabel" id="shots">
+      <button data-shot="0" aria-pressed="true">Three-quarter</button><button data-shot="1" aria-pressed="false">Profile</button><button data-shot="2" aria-pressed="false">Surface detail</button>
+    </div></div>
+    <div><span class="group-label" id="lightLabel">Lighting</span><div class="options light" role="group" aria-labelledby="lightLabel" id="lights">
+      <button data-light="cool" aria-pressed="true"><span class="swatch" aria-hidden="true"></span>Cool rim</button><button data-light="warm" aria-pressed="false"><span class="swatch warm" aria-hidden="true"></span>Warm fill</button>
+    </div></div>
+    <div class="player"><button class="tour" id="tour" aria-pressed="false"><span aria-hidden="true" id="playIcon">▶</span><span id="playText">Play camera tour</span></button><div class="track" aria-hidden="true"><i id="progress"></i></div></div>
+  </div>
+  <footer><span>Created by LT Armando Teixeira Pinto · 2HB D-COY 1 PL</span><span>Exterior photograph by <a href="https://commons.wikimedia.org/wiki/File:EF88_(Enhance_F88_%27Austeyr%27).png">KarmaKangaroo</a> · CC0</span></footer>
+</section>
+<section id="cycle" aria-label="Firing-cycle animation" hidden>
+  <div class="frame-link"><a href="../">Open original animation</a></div>
+</section>
+</main>
+<script src="../ef88-assets.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const surface = $('surface'), fallback = $('fallback'), stage = $('stage');
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const mix = (a, b, t) => a + (b - a) * t;
+const smooth = (t) => t*t*(3-2*t);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+const shots = [
+  {title:'Three-quarter view', yaw:-0.28, pitch:0.095, zoom:1.0, x:0, y:0},
+  {title:'Side profile', yaw:0, pitch:0, zoom:0.96, x:0, y:0},
+  {title:'Surface detail', yaw:0.15, pitch:0.065, zoom:1.93, x:-0.18, y:0.017}
+];
+const parameters = ['yaw','pitch','zoom','x','y'];
+let pose = {...shots[0]}, chosenShot = 0, transition = null, drawSurface = null;
+let isExterior = true, isPlaying = false, frame = 0, tourTime = 0, lastTime = 0;
+let cycleFrame, resumeCycle = false, light = 'cool';
+const cycleGrade = {cool:'contrast(1.06) saturate(.88)',warm:'contrast(1.04) sepia(.13) saturate(.95)'};
+const duration = 18000;
+function between(first, second, t) {
+  return Object.fromEntries(parameters.map(key => [key, mix(first[key],second[key],t)]));
+}
+function selectButtons(group, active) {
+  for (const button of group.querySelectorAll('button')) {
+    button.setAttribute('aria-pressed', String(button === active));
+  }
+}
+function markShot(index) {
+  chosenShot = index;
+  selectButtons($('shots'), $('shots').querySelector('[data-shot="'+index+'"]'));
+  $('shotTitle').textContent = index < 0 ? 'Custom angle' : shots[index].title;
+}
+function setTour(on) {
+  isPlaying = on;
+  $('tour').setAttribute('aria-pressed',String(on));
+  $('playIcon').textContent = on ? 'Ⅱ' : '▶';
+  $('playText').textContent = on ? 'Pause camera tour' : (tourTime > 0 ? 'Resume camera tour' : 'Play camera tour');
+  lastTime = 0;
+  if(on) requestDraw();
+}
+function requestDraw() {
+  if(!frame && isExterior && !document.hidden && drawSurface) frame = requestAnimationFrame(render);
+}
+function render(now) {
+  frame = 0;
+  if(!isExterior || document.hidden || !drawSurface) return;
+  if(isPlaying) {
+    if(lastTime) tourTime = Math.min(duration,tourTime + Math.min(100,now-lastTime));
+    lastTime = now;
+    // Hold each composition before easing to the next one.
+    const section = Math.min(2,Math.floor(tourTime / 6000));
+    const local = tourTime / 6000 - section;
+    const next = (section+1) % shots.length;
+    const fraction = smooth(clamp((local-.18)/.82,0,1));
+    pose = between(shots[section],shots[next],fraction);
+    const shown = fraction < .5 ? section : next;
+    if(shown !== chosenShot) markShot(shown);
+    $('progress').style.transform = 'scaleX('+(tourTime/duration)+')';
+    if(tourTime >= duration) {tourTime=0;setTour(false);}
+  } else if(transition) {
+    const t = clamp((now-transition.start)/540,0,1);
+    pose = between(transition.from,transition.to,smooth(t));
+    if(t >= 1) transition = null;
+  }
+  drawSurface();
+  if(isPlaying || transition) requestDraw();
+}
+function chooseShot(index) {
+  tourTime=0;setTour(false);$('progress').style.transform='scaleX(0)';
+  markShot(index);
+  if(reduced.matches) {pose={...shots[index]};transition=null;}
+  else transition={from:{...pose},to:shots[index],start:performance.now()};
+  requestDraw();
+}
+$('shots').addEventListener('click',e=>{const b=e.target.closest('[data-shot]');if(b) chooseShot(Number(b.dataset.shot));});
+$('lights').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;light=b.dataset.light;stage.dataset.light=light;selectButtons($('lights'),b);requestDraw();});
+$('tour').onclick=()=>{transition=null;setTour(!isPlaying);};
+let drag;
+function bindDrag(canvas) {
+  canvas.addEventListener('pointerdown',e=>{
+    if(e.button!==0 || !e.isPrimary) return;
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY,pose:{...pose},moved:false};
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove',e=>{
+    if(!drag || drag.id!==e.pointerId) return;
+    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(!drag.moved && Math.hypot(dx,dy)<4) return;
+    if(!drag.moved){tourTime=0;setTour(false);transition=null;markShot(-1);$('progress').style.transform='scaleX(0)';drag.moved=true;}
+    pose={...drag.pose,yaw:clamp(drag.pose.yaw+dx*.0027,-.52,.52),pitch:clamp(drag.pose.pitch-dy*.0022,-.20,.20)};
+    requestDraw();
+  });
+  for(const type of ['pointerup','pointercancel','lostpointercapture']) canvas.addEventListener(type,e=>{if(drag?.id===e.pointerId) drag=null;});
+}
+function switchView(exterior) {
+  if(exterior===isExterior) return;
+  isExterior=exterior;
+  $('exterior').hidden=!exterior;$('cycle').hidden=exterior;
+  $('exteriorButton').setAttribute('aria-pressed',String(exterior));
+  $('cycleButton').setAttribute('aria-pressed',String(!exterior));
+  if(!exterior) {
+    if(frame){cancelAnimationFrame(frame);frame=0;}setTour(false);
+    if(!cycleFrame){
+      cycleFrame=document.createElement('iframe');cycleFrame.title='EF88 firing-cycle animation';
+      cycleFrame.src='../';$('cycle').prepend(cycleFrame);
+      cycleFrame.addEventListener('load',()=>{
+        const doc=cycleFrame.contentDocument;
+        if(!doc)return;
+        const skin=doc.createElement('style');
+        skin.textContent=':root{--panel:#141d1a;--line:#34423a;--accent:#dfb97d;--accent-2:#f1c68c} .webgl-object-shell{background:radial-gradient(ellipse at 50% 43%,#2d4143,#101c1d 75%)} .btns button.play{border-color:var(--accent)}';
+        skin.textContent += ' .webgl-object-canvas{filter:var(--studio-grade)}';
+        doc.documentElement.style.setProperty('--studio-grade',cycleGrade[light]);
+        doc.head.append(skin);
+        if(!isExterior && !reduced.matches)return;
+        const sim=cycleFrame.contentWindow.__sim;
+        if(sim){resumeCycle=sim.clock.playing && !reduced.matches;sim.setPlaying(false);}
+      });
+    } else {
+      cycleFrame.contentDocument?.documentElement.style.setProperty('--studio-grade',cycleGrade[light]);
+      if(resumeCycle) cycleFrame.contentWindow.__sim?.setPlaying(true);
+    }
+  } else {
+    const sim=cycleFrame?.contentWindow.__sim;
+    if(sim){resumeCycle=sim.clock.playing;sim.setPlaying(false);}
+    requestDraw();
+  }
+}
+$('exteriorButton').onclick=()=>switchView(true);$('cycleButton').onclick=()=>switchView(false);
+document.addEventListener('visibilitychange',()=>{lastTime=0;if(document.hidden && frame){cancelAnimationFrame(frame);frame=0;}else requestDraw();});
+new ResizeObserver(requestDraw).observe(stage);
+function loadImage(url){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=url;});}
+function pixelData(image,width,height){
+  const c=document.createElement('canvas');c.width=width;c.height=height;
+  const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0,width,height);
+  return ctx.getImageData(0,0,width,height);
+}
+function frameSize(canvas) {
+  const w=stage.clientWidth,h=stage.clientHeight,dpr=Math.min(devicePixelRatio||1,2);
+  const pw=Math.max(1,Math.round(w*dpr)),ph=Math.max(1,Math.round(h*dpr));
+  if(canvas.width!==pw || canvas.height!==ph){canvas.width=pw;canvas.height=ph;}
+  // Keep the complete profile inside both the horizontal and the vertical margins.
+  const size=Math.min(w*.92,h*1.87)*dpr;
+  return {w:pw,h:ph,size};
+}
+function makeRelief(photo,depthImage) {
+  const gl=surface.getContext('webgl',{alpha:true,antialias:true,depth:true,premultipliedAlpha:false});
+  if(!gl) throw new Error('WebGL unavailable');
+  const vertex=`
+    attribute vec3 aPoint;
+    uniform vec2 uAngle, uScale, uCentre;
+    varying vec2 vUv;
+    void main(){
+      vUv=aPoint.xy;
+      vec3 p=vec3(aPoint.x-.5-uCentre.x,(.5-aPoint.y)*.3575-uCentre.y,(aPoint.z-.42)*.052);
+      float cy=cos(uAngle.x), sy=sin(uAngle.x), cp=cos(uAngle.y), sp=sin(uAngle.y);
+      vec3 r=vec3(cy*p.x+sy*p.z,p.y,-sy*p.x+cy*p.z);
+      r.yz=vec2(cp*r.y-sp*r.z,sp*r.y+cp*r.z);
+      float perspective=1.0-r.z*.27;
+      gl_Position=vec4(r.xy*uScale+vec2(0.,-.08)*perspective,-r.z,perspective);
+    }`;
+  const fragment=`
+    precision mediump float;
+    varying vec2 vUv;
+    uniform sampler2D uPhoto,uDepth;
+    uniform vec2 uTexel,uAngle;
+    uniform float uWarm;
+    void main(){
+      float d=texture2D(uDepth,vUv).r;
+      if(d < .002) discard;
+      vec2 dx=vec2(uTexel.x*2.,0.), dy=vec2(0.,uTexel.y*2.);
+      float gx=texture2D(uDepth,vUv+dx).r-texture2D(uDepth,vUv-dx).r;
+      float gy=texture2D(uDepth,vUv+dy).r-texture2D(uDepth,vUv-dy).r;
+      vec3 n=normalize(vec3(-gx*8.,gy*8.,1.));
+      vec3 view=normalize(vec3(-sin(uAngle.x),sin(uAngle.y),1.));
+      vec3 key=normalize(mix(vec3(-.62,.8,.7),vec3(.52,.69,.76),uWarm));
+      vec3 color=texture2D(uPhoto,vUv).rgb;
+      float lum=dot(color,vec3(.2126,.7152,.0722));
+      float saturation=max(max(color.r,color.g),color.b)-min(min(color.r,color.g),color.b);
+      float sheen=(1.-smoothstep(.04,.19,saturation))*smoothstep(.09,.5,lum);
+      float nl=max(dot(n,key),0.);
+      float glint=pow(max(dot(n,normalize(view+key)),0.),mix(13.,40.,sheen));
+      float edge=pow(1.-max(dot(n,view),0.),2.8);
+      vec3 fill=mix(vec3(.86,.95,1.05),vec3(1.06,.99,.85),uWarm);
+      vec3 highlight=mix(vec3(.6,.84,1.),vec3(1.,.83,.56),uWarm);
+      color=color*fill*(.77+.35*nl)+highlight*(glint*(.022+.12*sheen)+edge*.08);
+      gl_FragColor=vec4(color,1.);
+    }`;
+  const program=gl.createProgram();
+  for(const [kind,source] of [[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]]){
+    const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);
+    if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+    gl.attachShader(program,shader);gl.deleteShader(shader);
+  }
+  gl.linkProgram(program);
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+  gl.useProgram(program);
+  // The original project supplies one side photograph and a matching relief map.
+  const dw=depthImage.naturalWidth,dh=depthImage.naturalHeight;
+  const depth=pixelData(depthImage,dw,dh).data;
+  const nx=400,ny=143,points=new Float32Array(nx*ny*3),triangles=[];
+  for(let y=0;y<ny;y++) for(let x=0;x<nx;x++){
+    const u=x/(nx-1),v=y/(ny-1),offset=3*(y*nx+x);
+    points[offset]=u;points[offset+1]=v;
+    points[offset+2]=depth[4*(Math.round(v*(dh-1))*dw+Math.round(u*(dw-1)))]/255;
+  }
+  for(let y=0;y<ny-1;y++) for(let x=0;x<nx-1;x++){
+    const a=y*nx+x,b=a+1,c=a+nx,d=c+1;
+    if(points[3*a+2]+points[3*b+2]+points[3*c+2]+points[3*d+2]>0) triangles.push(a,c,b,b,c,d);
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER,points,gl.STATIC_DRAW);
+  const point=gl.getAttribLocation(program,'aPoint');
+  gl.enableVertexAttribArray(point);gl.vertexAttribPointer(point,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,gl.createBuffer());
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(triangles),gl.STATIC_DRAW);
+  function texture(image,unit,name) {
+    gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,gl.createTexture());
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);
+    for(const wrap of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D,wrap,gl.CLAMP_TO_EDGE);
+    for(const filter of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D,filter,gl.LINEAR);
+    gl.uniform1i(gl.getUniformLocation(program,name),unit);
+  }
+  texture(photo,0,'uPhoto');texture(depthImage,1,'uDepth');
+  const uni=Object.fromEntries(['uAngle','uScale','uCentre','uWarm','uTexel'].map(k=>[k,gl.getUniformLocation(program,k)]));
+  gl.uniform2f(uni.uTexel,1/dw,1/dh);gl.enable(gl.DEPTH_TEST);
+  gl.clearColor(0,0,0,0);
+  return ()=>{
+    const {w,h,size}=frameSize(surface);gl.viewport(0,0,w,h);
+    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    gl.uniform2f(uni.uAngle,pose.yaw,pose.pitch);gl.uniform2f(uni.uScale,2*size*pose.zoom/w,2*size*pose.zoom/h);
+    gl.uniform2f(uni.uCentre,pose.x,pose.y);gl.uniform1f(uni.uWarm,light==='warm'?1:0);
+    gl.drawElements(gl.TRIANGLES,triangles.length,gl.UNSIGNED_SHORT,0);
+  };
+}
+function makePhotoFallback(photo,depthImage) {
+  const w=photo.naturalWidth,h=photo.naturalHeight;
+  const photoPixels=pixelData(photo,w,h),mask=pixelData(depthImage,w,h).data;
+  for(let i=0;i<mask.length;i+=4) photoPixels.data[i+3]=Math.min(255,mask[i]*32);
+  const cutout=document.createElement('canvas');cutout.width=w;cutout.height=h;
+  cutout.getContext('2d').putImageData(photoPixels,0,0);
+  const ctx=fallback.getContext('2d');
+  surface.hidden=true;fallback.hidden=false;
+  $('hint').textContent='Photographic preview · Drag to reframe';
+  return ()=>{
+    const {w:width,h:height,size}=frameSize(fallback);
+    const scale=size*pose.zoom;
+    ctx.clearRect(0,0,width,height);
+    ctx.save();ctx.translate(width/2,height*.54);
+    ctx.scale(Math.cos(pose.yaw),Math.cos(pose.pitch));
+    ctx.translate(scale*(pose.yaw*.08-pose.x),scale*(pose.pitch*.08+pose.y));
+    ctx.filter=light==='warm'?'sepia(.26) saturate(.92) brightness(1.06)':'saturate(.83) contrast(1.04)';
+    ctx.drawImage(cutout,-scale/2,-scale*h/w/2,scale,scale*h/w);ctx.restore();
+  };
+}
+async function start() {
+  try {
+    const {tex,depth}=window.EF88_ASSETS;
+    const [photo,map]=await Promise.all([loadImage(tex),loadImage(depth)]);
+    const usePhotograph=()=>{drawSurface=makePhotoFallback(photo,map);requestDraw();};
+    try{drawSurface=makeRelief(photo,map);}
+    catch{usePhotograph();}
+    surface.addEventListener('webglcontextlost',e=>{e.preventDefault();usePhotograph();},{once:true});
+    bindDrag(surface);bindDrag(fallback);$('status').hidden=true;requestDraw();
+  } catch {
+    $('status').textContent='The exterior photograph could not load. Reload this page to try again.';
+    for(const b of $('exterior').querySelectorAll('button')) b.disabled=true;
+    $('hint').hidden=true;
+  }
+}
+start();
+</script>
+</body>
+</html>
