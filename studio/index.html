@@ -218,25 +218,42 @@ function makeRelief(photo,depthImage) {
     uniform mediump vec2 uAngle;
     uniform vec2 uScale, uCentre;
     varying mediump vec2 vUv;
+    attribute vec3 aWallNormal;
+    varying mediump vec3 vWallNormal;
     void main(){
       vUv=aPoint.xy;
       vec3 p=vec3(aPoint.x-.5-uCentre.x,(.5-aPoint.y)*.3575-uCentre.y,(aPoint.z-.42)*.052);
       float cy=cos(uAngle.x), sy=sin(uAngle.x), cp=cos(uAngle.y), sp=sin(uAngle.y);
       vec3 r=vec3(cy*p.x+sy*p.z,p.y,-sy*p.x+cy*p.z);
       r.yz=vec2(cp*r.y-sp*r.z,sp*r.y+cp*r.z);
+      vWallNormal=vec3(cy*aWallNormal.x+sy*aWallNormal.z,aWallNormal.y,-sy*aWallNormal.x+cy*aWallNormal.z);
+      vWallNormal.yz=vec2(cp*vWallNormal.y-sp*vWallNormal.z,sp*vWallNormal.y+cp*vWallNormal.z);
       float perspective=1.0-r.z*.27;
       gl_Position=vec4(r.xy*uScale+vec2(0.,-.08)*perspective,-r.z,perspective);
     }`;
   const fragment=`
     precision mediump float;
     varying mediump vec2 vUv;
+    varying mediump vec3 vWallNormal;
     uniform sampler2D uPhoto,uDepth;
     uniform mediump vec2 uAngle;
     uniform vec2 uTexel;
     uniform float uWarm;
+    uniform float uSurfaceType;
     void main(){
       float d=texture2D(uDepth,vUv).r;
-      if(d < .002) discard;
+      if(uSurfaceType != 1. && d < .002) discard;
+      if(uSurfaceType > .5){
+        vec3 normal=normalize(vWallNormal);
+        vec3 key=normalize(mix(vec3(-.62,.8,.7),vec3(.52,.69,.76),uWarm));
+        float diffuse=max(dot(normal,key),0.);
+        float rim=pow(1.-abs(normal.z),2.);
+        vec3 material=mix(vec3(.085,.103,.105),vec3(.11,.115,.106),uWarm);
+        if(vUv.x > .70) material*=1.13;
+        vec3 color=material*(.62+.62*diffuse)+vec3(.08,.105,.11)*rim*.22;
+        gl_FragColor=vec4(color,1.);
+        return;
+      }
       vec2 dx=vec2(uTexel.x*2.,0.), dy=vec2(0.,uTexel.y*2.);
       float gx=texture2D(uDepth,vUv+dx).r-texture2D(uDepth,vUv-dx).r;
       float gy=texture2D(uDepth,vUv+dy).r-texture2D(uDepth,vUv-dy).r;
@@ -267,20 +284,52 @@ function makeRelief(photo,depthImage) {
   // The original project supplies one side photograph and a matching relief map.
   const dw=depthImage.naturalWidth,dh=depthImage.naturalHeight;
   const depth=pixelData(depthImage,dw,dh).data;
-  const nx=400,ny=143,points=new Float32Array(nx*ny*3),triangles=[];
+  const nx=400,ny=143,points=new Float32Array(nx*ny*3),back=new Float32Array(nx*ny*3),triangles=[];
   for(let y=0;y<ny;y++) for(let x=0;x<nx;x++){
     const u=x/(nx-1),v=y/(ny-1),offset=3*(y*nx+x);
     points[offset]=u;points[offset+1]=v;
     points[offset+2]=depth[4*(Math.round(v*(dh-1))*dw+Math.round(u*(dw-1)))]/255;
+    back[offset]=u;back[offset+1]=v;back[offset+2]=-.38;
   }
   for(let y=0;y<ny-1;y++) for(let x=0;x<nx-1;x++){
     const a=y*nx+x,b=a+1,c=a+nx,d=c+1;
     if(points[3*a+2]+points[3*b+2]+points[3*c+2]+points[3*d+2]>0) triangles.push(a,c,b,b,c,d);
   }
-  gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer());
+  const frontBuffer=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,frontBuffer);
   gl.bufferData(gl.ARRAY_BUFFER,points,gl.STATIC_DRAW);
   const point=gl.getAttribLocation(program,'aPoint');
   gl.enableVertexAttribArray(point);gl.vertexAttribPointer(point,3,gl.FLOAT,false,0,0);
+  const backBuffer=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,backBuffer);gl.bufferData(gl.ARRAY_BUFFER,back,gl.STATIC_DRAW);
+  // Fill every exposed silhouette segment, including the openings under the grip.
+  // The dark wall gives the single photographed side a coherent outline in oblique views.
+  const walls=[];
+  const cols=nx-1,rows=ny-1;
+  const cell=(x,y)=>{
+    if(x<0||y<0||x>=cols||y>=rows)return 0;
+    const u=(x+.5)/cols,v=(y+.5)/rows;
+    return depth[4*(Math.round(v*(dh-1))*dw+Math.round(u*(dw-1)))]/255;
+  };
+  const addWall=(x0,y0,x1,y1,z,nx0,ny0)=>{
+    const a=[x0,y0,z,nx0,ny0,0],b=[x1,y1,z,nx0,ny0,0];
+    const c=[x0,y0,-.38,nx0,ny0,0],d=[x1,y1,-.38,nx0,ny0,0];
+    walls.push(...a,...c,...b,...b,...c,...d);
+  };
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    const z=cell(x,y);
+    if(z<.035)continue;
+    const left=x/cols,right=(x+1)/cols,top=y/rows,bottom=(y+1)/rows;
+    if(cell(x,y-1)<.035)addWall(left,top,right,top,z,0,1);
+    if(cell(x,y+1)<.035)addWall(left,bottom,right,bottom,z,0,-1);
+    if(cell(x-1,y)<.035)addWall(left,top,left,bottom,z,-1,0);
+    if(cell(x+1,y)<.035)addWall(right,top,right,bottom,z,1,0);
+  }
+  const wallBuffer=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,wallBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(walls),gl.STATIC_DRAW);
+  const wallNormal=gl.getAttribLocation(program,'aWallNormal');
+  gl.disableVertexAttribArray(wallNormal);gl.vertexAttrib3f(wallNormal,0,0,-1);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,gl.createBuffer());
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(triangles),gl.STATIC_DRAW);
   function texture(image,unit,name) {
@@ -291,7 +340,7 @@ function makeRelief(photo,depthImage) {
     gl.uniform1i(gl.getUniformLocation(program,name),unit);
   }
   texture(photo,0,'uPhoto');texture(depthImage,1,'uDepth');
-  const uni=Object.fromEntries(['uAngle','uScale','uCentre','uWarm','uTexel'].map(k=>[k,gl.getUniformLocation(program,k)]));
+  const uni=Object.fromEntries(['uAngle','uScale','uCentre','uWarm','uTexel','uSurfaceType'].map(k=>[k,gl.getUniformLocation(program,k)]));
   gl.uniform2f(uni.uTexel,1/dw,1/dh);gl.enable(gl.DEPTH_TEST);
   gl.clearColor(0,0,0,0);
   return ()=>{
@@ -299,6 +348,17 @@ function makeRelief(photo,depthImage) {
     gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     gl.uniform2f(uni.uAngle,pose.yaw,pose.pitch);gl.uniform2f(uni.uScale,2*size*pose.zoom/w,2*size*pose.zoom/h);
     gl.uniform2f(uni.uCentre,pose.x,pose.y);gl.uniform1f(uni.uWarm,light==='warm'?1:0);
+    gl.uniform1f(uni.uSurfaceType,2);
+    gl.bindBuffer(gl.ARRAY_BUFFER,backBuffer);gl.vertexAttribPointer(point,3,gl.FLOAT,false,0,0);
+    gl.drawElements(gl.TRIANGLES,triangles.length,gl.UNSIGNED_SHORT,0);
+    gl.uniform1f(uni.uSurfaceType,1);
+    gl.bindBuffer(gl.ARRAY_BUFFER,wallBuffer);
+    gl.vertexAttribPointer(point,3,gl.FLOAT,false,24,0);
+    gl.enableVertexAttribArray(wallNormal);gl.vertexAttribPointer(wallNormal,3,gl.FLOAT,false,24,12);
+    gl.drawArrays(gl.TRIANGLES,0,walls.length/6);
+    gl.disableVertexAttribArray(wallNormal);gl.vertexAttrib3f(wallNormal,0,0,1);
+    gl.uniform1f(uni.uSurfaceType,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,frontBuffer);gl.vertexAttribPointer(point,3,gl.FLOAT,false,0,0);
     gl.drawElements(gl.TRIANGLES,triangles.length,gl.UNSIGNED_SHORT,0);
   };
 }
