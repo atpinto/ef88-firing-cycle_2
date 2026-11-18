@@ -326,6 +326,7 @@ async function start() {
   try {
     const {tex,depth}=window.EF88_ASSETS;
     const [photo,map]=await Promise.all([loadImage('https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/EF88_%28Enhance_F88_%27Austeyr%27%29.png/3840px-EF88_%28Enhance_F88_%27Austeyr%27%29.png').catch(() => loadImage(tex)),loadImage(depth)]);
+    surface.dataset.textureWidth = String(photo.naturalWidth);
     const usePhotograph=()=>{drawSurface=makePhotoFallback(photo,map);requestDraw();};
     try{drawSurface=makeRelief(photo,map);}
     catch(error){console.warn('Exterior relief unavailable.',error.message);usePhotograph();}
