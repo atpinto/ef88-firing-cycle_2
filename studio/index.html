@@ -65,6 +65,7 @@ footer{display:flex;justify-content:space-between;align-items:center;gap:10px 25
 </section>
 </main>
 <script src="../ef88-assets.js"></script>
+<script src="ef88-photo.js"></script>
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
@@ -325,7 +326,7 @@ function makePhotoFallback(photo,depthImage) {
 async function start() {
   try {
     const {tex,depth}=window.EF88_ASSETS;
-    const [photo,map]=await Promise.all([loadImage(tex),loadImage(depth)]);
+    const [photo,map]=await Promise.all([loadImage(window.EF88_STUDIO_TEXTURE || tex).catch(() => loadImage(tex)),loadImage(depth)]);
     const usePhotograph=()=>{drawSurface=makePhotoFallback(photo,map);requestDraw();};
     try{drawSurface=makeRelief(photo,map);}
     catch(error){console.warn('Exterior relief unavailable.',error.message);usePhotograph();}
