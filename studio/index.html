@@ -210,12 +210,14 @@ function frameSize(canvas) {
   return {w:pw,h:ph,size};
 }
 function makeRelief(photo,depthImage) {
-  const gl=surface.getContext('webgl',{alpha:true,antialias:true,depth:true,premultipliedAlpha:false});
+  const options={alpha:true,antialias:true,depth:true,premultipliedAlpha:false};
+  const gl=surface.getContext('webgl2',options) || surface.getContext('webgl',options);
   if(!gl) throw new Error('WebGL unavailable');
   const vertex=`
     attribute vec3 aPoint;
-    uniform vec2 uAngle, uScale, uCentre;
-    varying vec2 vUv;
+    uniform mediump vec2 uAngle;
+    uniform vec2 uScale, uCentre;
+    varying mediump vec2 vUv;
     void main(){
       vUv=aPoint.xy;
       vec3 p=vec3(aPoint.x-.5-uCentre.x,(.5-aPoint.y)*.3575-uCentre.y,(aPoint.z-.42)*.052);
@@ -227,9 +229,10 @@ function makeRelief(photo,depthImage) {
     }`;
   const fragment=`
     precision mediump float;
-    varying vec2 vUv;
+    varying mediump vec2 vUv;
     uniform sampler2D uPhoto,uDepth;
-    uniform vec2 uTexel,uAngle;
+    uniform mediump vec2 uAngle;
+    uniform vec2 uTexel;
     uniform float uWarm;
     void main(){
       float d=texture2D(uDepth,vUv).r;
@@ -325,7 +328,7 @@ async function start() {
     const [photo,map]=await Promise.all([loadImage(tex),loadImage(depth)]);
     const usePhotograph=()=>{drawSurface=makePhotoFallback(photo,map);requestDraw();};
     try{drawSurface=makeRelief(photo,map);}
-    catch{usePhotograph();}
+    catch(error){console.warn('Exterior relief unavailable.',error.message);usePhotograph();}
     surface.addEventListener('webglcontextlost',e=>{e.preventDefault();usePhotograph();},{once:true});
     bindDrag(surface);bindDrag(fallback);$('status').hidden=true;requestDraw();
   } catch {
