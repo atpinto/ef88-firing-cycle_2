@@ -44,7 +44,7 @@ footer{display:flex;justify-content:space-between;align-items:center;gap:10px 25
 </header>
 <section id="model" aria-label="Full 3D EF88 model">
   <div class="stage">
-    <iframe title="Rotatable EF88 model by Upsurge Studios" src="https://sketchfab.com/models/d1d54b9889924370a6d4576b004fa180/embed?autostart=1&amp;camera=0&amp;autospin=0.2&amp;dnt=1&amp;ui_hint=2" allow="fullscreen; autoplay; xr-spatial-tracking" allowfullscreen></iframe>
+    <iframe id="modelFrame" title="Rotatable EF88 model by Upsurge Studios" src="https://sketchfab.com/models/d1d54b9889924370a6d4576b004fa180/embed?autostart=1&amp;camera=0&amp;autospin=0.2&amp;dnt=1&amp;ui_hint=2" allow="fullscreen; autoplay; xr-spatial-tracking" allowfullscreen></iframe>
   </div>
   <p class="model-note">Drag the model to inspect both sides. This independent 3D reference uses a PEQ-15 laser and a suppressor; the <a href="#photo" id="photoLink">photo study</a> shows the photographed EF88 with its PEQ-16B LAID.</p>
   <footer><span>Created by LT Armando Teixeira Pinto · 2HB D-COY 1 PL</span><span>3D model by <a href="https://sketchfab.com/3d-models/ef88-rifle-d1d54b9889924370a6d4576b004fa180">Upsurge Studios</a> · embedded from Sketchfab</span></footer>
@@ -74,8 +74,25 @@ footer{display:flex;justify-content:space-between;align-items:center;gap:10px 25
 </section>
 </main>
 <script src="../ef88-assets.js"></script>
+<script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js" defer onload="startModelViewer()"></script>
 <script>
 'use strict';
+function startModelViewer(){
+  if(!window.Sketchfab)return;
+  const iframe=document.getElementById('modelFrame');
+  const fallback=iframe.src;
+  const client=new Sketchfab('1.12.1',iframe);
+  client.init('d1d54b9889924370a6d4576b004fa180',{
+    autostart:1,camera:0,autospin:.2,dnt:1,ui_hint:2,
+    success(api){
+      api.addEventListener('viewerready',()=>{
+        api.setEnableCameraConstraints(false,{},()=>api.recenterCamera(()=>{}));
+      });
+      api.start();
+    },
+    error(){iframe.src=fallback;}
+  });
+}
 const $ = (id) => document.getElementById(id);
 const surface = $('surface'), fallback = $('fallback'), stage = $('stage');
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
