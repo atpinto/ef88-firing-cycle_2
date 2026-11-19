@@ -14,6 +14,8 @@ h1{margin:0;font-size:clamp(20px,2vw,29px);font-weight:570;letter-spacing:-.055e
 .switch{display:flex;gap:3px;padding:3px;border:1px solid #3c4743;border-radius:7px;background:#0a100f}.switch button{padding:8px 13px;border-radius:4px;font-size:13px;background:transparent;color:#b1b9b4}.switch button[aria-pressed=true]{background:#dedfd2;color:#18201c}
 #exterior{flex:1;display:flex;flex-direction:column}.stage{position:relative;isolation:isolate;overflow:hidden;min-height:310px;flex:1 0 auto;height:clamp(350px,calc(100svh - 268px),880px);background:radial-gradient(ellipse at 53% 52%,#304144 0,#1e3033 31%,#112023 59%,#0a1315 86%)}
 .stage[data-light=warm]{background:radial-gradient(ellipse at 53% 52%,#45443b 0,#33372f 31%,#222b26 59%,#121a16 86%)}
+#model{flex:1;display:flex;flex-direction:column}#model .stage{background:#252a2b}#model iframe{position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1}
+.model-note{padding:12px clamp(18px,3.8vw,72px);background:#1b2422;color:#c6d0c8;font-size:14px;line-height:1.45}.model-note a{text-underline-offset:3px}
 .stage:after{content:"";position:absolute;inset:0;pointer-events:none;border-bottom:1px solid #53615a66;box-shadow:inset 0 -50px 100px -80px #0009}
 #surface,#fallback{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y;z-index:1;cursor:grab}#surface:active,#fallback:active{cursor:grabbing}
 .shadow{position:absolute;left:19%;width:65%;height:5%;bottom:14%;background:#0009;border-radius:50%;filter:blur(16px);pointer-events:none}
@@ -30,7 +32,7 @@ h2{margin:0;font-size:clamp(24px,3.7vw,58px);font-weight:450;line-height:1.03;le
 footer{display:flex;justify-content:space-between;align-items:center;gap:10px 25px;flex-wrap:wrap;padding:13px clamp(18px,3.8vw,72px);font-size:11px;color:#afb9b1}footer span{line-height:1.45}footer a{text-underline-offset:3px}
 #cycle{display:flex;flex-direction:column;min-height:0;height:calc(100vh - 72px);height:calc(100dvh - 72px)}#cycle iframe{background:#101615;flex:1;width:100%;min-height:200px;border:0}#cycle .frame-link{padding:6px 18px;text-align:right;font-size:11px;color:#acb8b1}
 @media(max-width:820px){.controls{grid-template-columns:1fr auto;gap:16px}.controls .player{grid-column:1/-1;display:flex;align-items:center}.tour{min-width:140px}.track{flex:1}.stage{height:clamp(310px,55svh,680px)}}
-@media(max-width:570px){header{min-height:64px;padding:10px 14px;gap:6px}.brand{display:block}.edition{display:block;border:0;padding:0;margin-top:3px;font-size:9px}.switch button{padding:8px;font-size:12px}.stage{min-height:285px;height:clamp(285px,48svh,570px)}.stage-head{top:20px}.controls{padding:15px 14px;grid-template-columns:1fr;gap:13px}.controls .player{grid-column:auto}.options button{min-height:38px}.group-label{margin-bottom:6px}.hint{font-size:11px}.shadow{bottom:27%;height:4%;filter:blur(10px)}footer{padding:12px 14px;gap:4px}.stage:after{box-shadow:none}#cycle{height:calc(100dvh - 64px)}}
+@media(max-width:570px){header{min-height:64px;padding:10px 14px;gap:6px}.brand{display:block}.edition{display:block;border:0;padding:0;margin-top:3px;font-size:9px}.switch button{padding:8px 6px;font-size:11px}.stage{min-height:285px;height:clamp(285px,48svh,570px)}.stage-head{top:20px}.controls{padding:15px 14px;grid-template-columns:1fr;gap:13px}.controls .player{grid-column:auto}.options button{min-height:38px}.group-label{margin-bottom:6px}.hint{font-size:11px}.shadow{bottom:27%;height:4%;filter:blur(10px)}footer{padding:12px 14px;gap:4px}.stage:after{box-shadow:none}#cycle{height:calc(100dvh - 64px)}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 </style>
 </head>
@@ -38,9 +40,16 @@ footer{display:flex;justify-content:space-between;align-items:center;gap:10px 25
 <main>
 <header>
   <div class="brand"><h1>EF88 Austeyr</h1><span class="edition">Studio edition</span></div>
-  <nav class="switch" aria-label="View"><button id="exteriorButton" aria-controls="exterior" aria-pressed="true">Exterior</button><button id="cycleButton" aria-controls="cycle" aria-pressed="false">Firing cycle</button></nav>
+  <nav class="switch" aria-label="View"><button id="modelButton" aria-controls="model" aria-pressed="true">Full 3D</button><button id="exteriorButton" aria-controls="exterior" aria-pressed="false">Photo study</button><button id="cycleButton" aria-controls="cycle" aria-pressed="false">Firing cycle</button></nav>
 </header>
-<section id="exterior" aria-label="Exterior studio">
+<section id="model" aria-label="Full 3D EF88 model">
+  <div class="stage">
+    <iframe title="Rotatable EF88 model by Upsurge Studios" src="https://sketchfab.com/models/d1d54b9889924370a6d4576b004fa180/embed" allow="fullscreen; autoplay; xr-spatial-tracking" allowfullscreen></iframe>
+  </div>
+  <p class="model-note">Drag the model to inspect both sides. This independent 3D reference uses a PEQ-15 laser and a suppressor; the <a href="#photo" id="photoLink">photo study</a> shows the photographed EF88 with its PEQ-16B LAID.</p>
+  <footer><span>Created by LT Armando Teixeira Pinto · 2HB D-COY 1 PL</span><span>3D model by <a href="https://sketchfab.com/3d-models/ef88-rifle-d1d54b9889924370a6d4576b004fa180">Upsurge Studios</a> · embedded from Sketchfab</span></footer>
+</section>
+<section id="exterior" aria-label="Photographed exterior study" hidden>
   <div class="stage" id="stage" data-light="cool">
     <div class="stage-head"><p class="kicker">Exterior study</p><h2 id="shotTitle">Three-quarter view</h2></div>
     <div class="shadow"></div>
@@ -80,7 +89,7 @@ const shots = [
 ];
 const parameters = ['yaw','pitch','zoom','x','y'];
 let pose = {...shots[0]}, chosenShot = 0, transition = null, drawSurface = null;
-let isExterior = true, isPlaying = false, frame = 0, tourTime = 0, lastTime = 0;
+let currentView = 'model', isPlaying = false, frame = 0, tourTime = 0, lastTime = 0;
 let cycleFrame, resumeCycle = false, light = 'cool';
 const cycleGrade = {cool:'contrast(1.06) saturate(.88)',warm:'contrast(1.04) sepia(.13) saturate(.95)'};
 const duration = 18000;
@@ -106,11 +115,11 @@ function setTour(on) {
   if(on) requestDraw();
 }
 function requestDraw() {
-  if(!frame && isExterior && !document.hidden && drawSurface) frame = requestAnimationFrame(render);
+  if(!frame && currentView==='photo' && !document.hidden && drawSurface) frame = requestAnimationFrame(render);
 }
 function render(now) {
   frame = 0;
-  if(!isExterior || document.hidden || !drawSurface) return;
+  if(currentView!=='photo' || document.hidden || !drawSurface) return;
   if(isPlaying) {
     if(lastTime) tourTime = Math.min(duration,tourTime + Math.min(100,now-lastTime));
     lastTime = now;
@@ -159,13 +168,15 @@ function bindDrag(canvas) {
   });
   for(const type of ['pointerup','pointercancel','lostpointercapture']) canvas.addEventListener(type,e=>{if(drag?.id===e.pointerId) drag=null;});
 }
-function switchView(exterior) {
-  if(exterior===isExterior) return;
-  isExterior=exterior;
-  $('exterior').hidden=!exterior;$('cycle').hidden=exterior;
-  $('exteriorButton').setAttribute('aria-pressed',String(exterior));
-  $('cycleButton').setAttribute('aria-pressed',String(!exterior));
-  if(!exterior) {
+function switchView(view) {
+  if(view===currentView) return;
+  currentView=view;
+  $('model').hidden=view!=='model';$('exterior').hidden=view!=='photo';$('cycle').hidden=view!=='cycle';
+  $('modelButton').setAttribute('aria-pressed',String(view==='model'));
+  $('exteriorButton').setAttribute('aria-pressed',String(view==='photo'));
+  $('cycleButton').setAttribute('aria-pressed',String(view==='cycle'));
+  if(view!=='photo') {if(frame){cancelAnimationFrame(frame);frame=0;}setTour(false);}
+  if(view==='cycle') {
     if(frame){cancelAnimationFrame(frame);frame=0;}setTour(false);
     if(!cycleFrame){
       cycleFrame=document.createElement('iframe');cycleFrame.title='EF88 firing-cycle animation';
@@ -178,7 +189,7 @@ function switchView(exterior) {
         skin.textContent += ' .webgl-object-canvas{filter:var(--studio-grade)}';
         doc.documentElement.style.setProperty('--studio-grade',cycleGrade[light]);
         doc.head.append(skin);
-        if(!isExterior && !reduced.matches)return;
+        if(currentView==='cycle' && !reduced.matches)return;
         const sim=cycleFrame.contentWindow.__sim;
         if(sim){resumeCycle=sim.clock.playing && !reduced.matches;sim.setPlaying(false);}
       });
@@ -189,10 +200,11 @@ function switchView(exterior) {
   } else {
     const sim=cycleFrame?.contentWindow.__sim;
     if(sim){resumeCycle=sim.clock.playing;sim.setPlaying(false);}
-    requestDraw();
+    if(view==='photo')requestDraw();
   }
 }
-$('exteriorButton').onclick=()=>switchView(true);$('cycleButton').onclick=()=>switchView(false);
+$('modelButton').onclick=()=>switchView('model');$('exteriorButton').onclick=()=>switchView('photo');$('cycleButton').onclick=()=>switchView('cycle');
+$('photoLink').onclick=e=>{e.preventDefault();switchView('photo');};
 document.addEventListener('visibilitychange',()=>{lastTime=0;if(document.hidden && frame){cancelAnimationFrame(frame);frame=0;}else requestDraw();});
 new ResizeObserver(requestDraw).observe(stage);
 function loadImage(url){return new Promise((resolve,reject)=>{const img=new Image();if(url.startsWith('https:'))img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=reject;img.src=url;});}
@@ -243,7 +255,7 @@ function makeRelief(photo,depthImage) {
     void main(){
       float d=texture2D(uDepth,vUv).r;
       if(uSurfaceType != 1. && d < .002) discard;
-      if(uSurfaceType > .5){
+      if(uSurfaceType > .5 && uSurfaceType < 2.5){
         vec3 normal=normalize(vWallNormal);
         vec3 key=normalize(mix(vec3(-.62,.8,.7),vec3(.52,.69,.76),uWarm));
         float diffuse=max(dot(normal,key),0.);
@@ -261,6 +273,11 @@ function makeRelief(photo,depthImage) {
       vec3 view=normalize(vec3(-sin(uAngle.x),sin(uAngle.y),1.));
       vec3 key=normalize(mix(vec3(-.62,.8,.7),vec3(.52,.69,.76),uWarm));
       vec3 color=texture2D(uPhoto,vUv).rgb;
+      if(uSurfaceType < .5){
+        float behind=smoothstep(.54,.548,vUv.x)*(1.-smoothstep(.677,.685,vUv.x))
+          *smoothstep(.34,.35,vUv.y)*(1.-smoothstep(.62,.63,vUv.y));
+        color=mix(color,vec3(.09,.11,.12),behind*.94);
+      }
       float lum=dot(color,vec3(.2126,.7152,.0722));
       float saturation=max(max(color.r,color.g),color.b)-min(min(color.r,color.g),color.b);
       float sheen=(1.-smoothstep(.04,.19,saturation))*smoothstep(.09,.5,lum);
@@ -325,6 +342,22 @@ function makeRelief(photo,depthImage) {
     if(cell(x-1,y)<.035)addWall(left,top,left,bottom,z,-1,0);
     if(cell(x+1,y)<.035)addWall(right,top,right,bottom,z,1,0);
   }
+  // The LAID projects from the side rail. Give it a separate photographed face
+  // and its own side faces instead of deforming it with the receiver relief.
+  const laidOutline=[[651,162],[672,149],[797,153],[816,170],[814,242],[799,268],[669,267],[650,239]]
+    .map(([x,y])=>[x/1200,y/428]);
+  const laidCentre=[.611,.488],laidFace=[];
+  for(let i=0;i<laidOutline.length;i++){
+    const a=laidOutline[i],b=laidOutline[(i+1)%laidOutline.length];
+    laidFace.push(...laidCentre,1.62,...a,1.62,...b,1.62);
+    const dx=b[0]-a[0],dy=b[1]-a[1];
+    const length=Math.hypot(dx,dy*.3575),normalX=dy*.3575/length,normalY=dx/length;
+    const p=[...a,1.62,normalX,normalY,0],q=[...b,1.62,normalX,normalY,0];
+    const r=[...a,.55,normalX,normalY,0],s=[...b,.55,normalX,normalY,0];
+    walls.push(...p,...r,...q,...q,...r,...s);
+  }
+  const laidBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,laidBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(laidFace),gl.STATIC_DRAW);
   const wallBuffer=gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER,wallBuffer);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(walls),gl.STATIC_DRAW);
@@ -360,6 +393,9 @@ function makeRelief(photo,depthImage) {
     gl.uniform1f(uni.uSurfaceType,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,frontBuffer);gl.vertexAttribPointer(point,3,gl.FLOAT,false,0,0);
     gl.drawElements(gl.TRIANGLES,triangles.length,gl.UNSIGNED_SHORT,0);
+    gl.uniform1f(uni.uSurfaceType,3);
+    gl.bindBuffer(gl.ARRAY_BUFFER,laidBuffer);gl.vertexAttribPointer(point,3,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.TRIANGLES,0,laidFace.length/3);
   };
 }
 function makePhotoFallback(photo,depthImage) {
