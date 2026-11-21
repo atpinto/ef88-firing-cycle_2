@@ -1,0 +1,27 @@
+name: Exterior visual check
+on: [push]
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare browser
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/exterior-qa" playwright@1.56.1 three@0.160.0
+          "$RUNNER_TEMP/exterior-qa/node_modules/.bin/playwright" install chromium --with-deps
+      - name: Check the exterior
+        run: |
+          python3 -m http.server 8743 --bind 127.0.0.1 > /tmp/preview.log 2>&1 &
+          NODE_PATH="$RUNNER_TEMP/exterior-qa/node_modules" node exterior-qa.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exterior-views
+          path: exterior-qa/*.png
+          retention-days: 1
