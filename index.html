@@ -109,13 +109,15 @@
 } }
 </script>
 <script src="ef88-assets.js?v=2"></script>
+<script src="ef88-left-assets.js"></script>
+<script src="exterior-shell.js"></script>
 </head>
 <body>
 <div class="webgl-object-shell" id="shell">
   <canvas class="webgl-object-canvas" data-webgl-3d-object></canvas>
   <div id="overlay"><svg id="leaders"></svg></div>
   <div class="hint">Drag to rotate · scroll or pinch to zoom · right-drag to pan</div>
-  <div class="loading" id="loading">Building the rifle body from the photo…</div>
+  <div class="loading" id="loading">Loading the rifle exterior…</div>
   <div class="err" id="err">Could not start WebGL or load three.js. Check your internet connection and reload.</div>
 
   <div class="transport">
@@ -293,53 +295,74 @@ function helixGeo(turns, r, tube) { // unit length along +x
 }
 const unitX = (r) => { const g = new THREE.CylinderGeometry(r, r, 1, 16, 1, true); g.rotateZ(-Math.PI / 2); g.translate(0.5, 0, 0); return g; };
 
-// ---------- exterior: relief mesh built from the reference photo and its depth map ----------
+// ---------- exterior: independently registered left and right relief surfaces ----------
 // Measured from reference-photos/ef88-right-side.jpg: 0.10509 cm per depth-map pixel (80.5 cm overall), bore axis on
 // row 120, muzzle tip at column 781.5. Placed so the photo's ejection port and magazine well sit over the mechanism.
 const PHOTO = { W: 800, H: 286, cm: 0.10509138, zMax: 3.2, muzzlePx: 781.5, axisPx: 120, muzzleX: 42.3 };
-const shell = new THREE.Mesh(new THREE.BufferGeometry(), M.shell);
-shell.castShadow = true; shell.renderOrder = 5; shell.visible = false; rifle.add(shell);
+const leftShell = M.shell.clone();
+const shellEdge = std({ color: 0x292b2e, roughness: .83, metalness: .12 });
+const shellMaterials = [M.shell, leftShell, shellEdge];
+const shell = new THREE.Mesh(new THREE.BufferGeometry(), shellMaterials);
+shell.castShadow = true;
+shell.renderOrder = 5;
+shell.visible = false;
+rifle.add(shell);
 let shellReady = false;
-const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
-Promise.all([loadImg(window.EF88_ASSETS.tex), loadImg(window.EF88_ASSETS.depth)]).then(([texImg, depthImg]) => {
-  const { W, H, cm, zMax, muzzlePx, axisPx, muzzleX } = PHOTO;
-  const c = document.createElement("canvas"); c.width = W; c.height = H;
-  const g2 = c.getContext("2d", { willReadFrequently: true }); g2.drawImage(depthImg, 0, 0, W, H);
-  const px = g2.getImageData(0, 0, W, H).data;
-  const idx = new Int32Array(W * H).fill(-1), pos = [], uv = [];
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const v = px[(y * W + x) * 4]; if (!v) continue;
-    idx[y * W + x] = pos.length / 3;
-    pos.push((x - muzzlePx) * cm + muzzleX, -(y - axisPx) * cm, (v - 1) / 254 * zMax);
-    uv.push((x + 0.5) / W, 1 - (y + 0.5) / H);
+const loadImg = (src) => new Promise((resolve, reject) => {
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = reject;
+  image.src = src;
+});
+function readDepth(image) {
+  const canvas = document.createElement("canvas");
+  canvas.width = PHOTO.W;
+  canvas.height = PHOTO.H;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  return Uint8Array.from({ length: PHOTO.W * PHOTO.H }, (_, i) => rgba[i * 4]);
+}
+function colorTexture(image) {
+  const texture = new THREE.Texture(image);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  texture.needsUpdate = true;
+  return texture;
+}
+function addRearFinish(material, pad) {
+  material.onBeforeCompile = shader => {
+    shader.uniforms.padMap = { value: pad };
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec2 rearUv; attribute float rearBlend; varying vec2 padUv; varying float padMix;")
+      .replace("#include <uv_vertex>", "#include <uv_vertex>\npadUv = rearUv; padMix = rearBlend;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform sampler2D padMap; varying vec2 padUv; varying float padMix;")
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, texture2D(padMap, padUv).rgb, padMix);");
+  };
+}
+const rightAssets = window.EF88_ASSETS, leftAssets = window.EF88_LEFT;
+Promise.all([rightAssets.tex, rightAssets.depth, leftAssets.color, leftAssets.depth, leftAssets.pad, leftAssets.magazine].map(loadImg))
+.then(([rightPhoto, rightMap, leftPhoto, leftMap, padImage, magazineImage]) => {
+  shell.geometry.dispose();
+  shell.geometry = buildExteriorShell(THREE, PHOTO, readDepth(rightMap), readDepth(leftMap));
+  const pad = colorTexture(padImage);
+  for (const [material, image] of [[M.shell, rightPhoto], [leftShell, leftPhoto]]) {
+    material.map = colorTexture(image);
+    material.vertexColors = true;
+    addRearFinish(material, pad);
+    material.needsUpdate = true;
   }
-  const n = pos.length / 3; // mirror the right half to make the left half
-  for (let i = 0; i < n; i++) { pos.push(pos[3 * i], pos[3 * i + 1], -pos[3 * i + 2]); uv.push(uv[2 * i], uv[2 * i + 1]); }
-  const ind = [], tri = (a, b, c) => { ind.push(a, b, c, c + n, b + n, a + n); };
-  for (let y = 0; y < H - 1; y++) for (let x = 0; x < W - 1; x++) {
-    const a = idx[y * W + x], b = idx[y * W + x + 1], c = idx[(y + 1) * W + x], d = idx[(y + 1) * W + x + 1];
-    const A = a >= 0, B = b >= 0, C = c >= 0, D = d >= 0;
-    if (A && B && C && D) { tri(a, c, b); tri(b, c, d); }
-    else if (A && B && C) tri(a, c, b);
-    else if (B && C && D) tri(b, c, d);
-    else if (A && C && D) tri(a, c, d);
-    else if (A && B && D) tri(a, d, b);
-  }
-  const geo = shell.geometry;
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
-  geo.setIndex(new THREE.BufferAttribute(new Uint32Array(ind), 1));
-  geo.computeVertexNormals(); geo.computeBoundingSphere();
-  // The photo was lit from above, so its top edge is a baked highlight. Smeared over the whole top surface it reads
-  // as white, so faces that point up or down are toned down and left to the scene lights.
-  const nrm = geo.attributes.normal, col = new Float32Array(nrm.count * 3);
-  for (let i = 0; i < nrm.count; i++) { const c = 1 - 0.6 * smooth((Math.abs(nrm.getY(i)) - 0.45) / 0.4); col[3 * i] = col[3 * i + 1] = col[3 * i + 2] = c; }
-  geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); M.shell.vertexColors = true;
-  const tex = new THREE.Texture(texImg); tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.needsUpdate = true;
-  M.shell.map = tex; M.shell.needsUpdate = true;
-  shellReady = true; syncBody(); $("loading").hidden = true;
-}).catch(() => { $("loading").textContent = "The rifle photo could not be decoded."; });
+  shell.userData.rearTexture = pad;
+  magazineFace.map = colorTexture(magazineImage);
+  magazineFace.needsUpdate = true;
+  shellReady = true;
+  syncBody();
+  $("loading").hidden = true;
+}).catch(error => {
+  console.error("Exterior load failed", error);
+  $("loading").textContent = "The rifle exterior could not be loaded. Reload the page to retry.";
+});
 
 // ---------- barrel liner and gas system (inside the photo body) ----------
 const GAS_Y = -1.0, GAS_Z = 1.75, PORT_X = 20.5, MUZZLE_X = 42.3;
@@ -418,7 +441,9 @@ const shot = new THREE.Mesh(bulletGeo, M.copper); shot.visible = false; rifle.ad
 const MAG_TOP = -1.3, PITCH = 0.43, MAG_CAP = 29, MAG_X = -18.2;
 const magCurve = (y) => 0.008 * (y + 1) * (y + 1);
 const magRounds = [];
-let follower, magSpring;
+let follower, magSpring, magazineBody;
+const magazineFace = std({ color: 0xffffff, roughness: .76, metalness: .13 });
+const opaqueMagazine = [magazineFace, M.magSolid];
 {
   const s = new THREE.Shape(), ys = []; for (let y = -0.9; y >= -15.61; y -= 1.47) ys.push(y);
   s.moveTo(-18.55 + magCurve(ys[0]), ys[0]);
@@ -426,7 +451,17 @@ let follower, magSpring;
   for (const y of ys.slice().reverse()) s.lineTo(-12.05 + magCurve(y), y);
   s.closePath();
   const g = new THREE.ExtrudeGeometry(s, { depth: 2.5, bevelEnabled: false }); g.translate(0, 0, -1.25);
-  const m = new THREE.Mesh(g, M.mag); m.renderOrder = 2; rifle.add(m);
+  // Project the ribbed finish onto the two broad exterior faces of the magazine.
+  const { position, normal, uv } = g.attributes;
+  for (let i = 0; i < position.count; i++) {
+    if (Math.abs(normal.getZ(i)) < .9) continue;
+    const y = position.getY(i);
+    const u = (-12.05 + magCurve(y) - position.getX(i)) / 6.5;
+    uv.setXY(i, u, (y + 15.6) / 11.8);
+  }
+  magazineBody = new THREE.Mesh(g, M.mag);
+  magazineBody.renderOrder = 2;
+  rifle.add(magazineBody);
   const yb = -15.6; box(-18.8 + magCurve(yb), -11.8 + magCurve(yb), yb - 0.45, yb, -1.4, 1.4, M.magSolid).castShadow = true;
   for (let i = 0; i < MAG_CAP; i++) { const r = makeRound(M.brass); magRounds.push(r); rifle.add(r); }
   follower = box(-3.0, 3.0, -0.18, 0.18, -1.1, 1.1, M.magSolid);
@@ -672,12 +707,22 @@ function updateLabels() {
 
 // ---------- controls ----------
 function pressGroup(group, btn) { [...group.querySelectorAll("button")].forEach((c) => c.setAttribute("aria-pressed", c === btn)); }
-let bodyMode = "see";
+const requested = new URLSearchParams(location.search);
+let bodyMode = requested.get("body") === "solid" ? "solid" : "see";
+pressGroup($("body"), $("body").querySelector('[data-b="' + bodyMode + '"]'));
 function syncBody() {
   const solid = bodyMode === "solid", v = +$("bodyT").value, o = solid ? 1 : 1 - v / 100;
   $("bodyO").textContent = v + "%"; $("bodyLevel").classList.toggle("dim", solid);
-  M.shell.opacity = o; M.shell.depthWrite = solid; shell.visible = shellReady && o > 0.015;
-  if (M.shell.transparent === solid) { M.shell.transparent = !solid; M.shell.needsUpdate = true; }
+  shell.visible = shellReady && o > .015;
+  for (const material of shellMaterials) {
+    material.opacity = o;
+    material.depthWrite = solid;
+    if (material.transparent === solid) {
+      material.transparent = !solid;
+      material.needsUpdate = true;
+    }
+  }
+  magazineBody.material = solid && shellReady ? opaqueMagazine : M.mag;
 }
 $("body").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; bodyMode = b.dataset.b; pressGroup($("body"), b); syncBody(); });
 $("bodyT").addEventListener("input", syncBody);
@@ -707,7 +752,9 @@ const VIEWS = {
   action: { dir: [0.18, 0.14, 1], target: [-21, -2.6, 0], span: [38, 17] },
   gas: { dir: [0.3, 0.26, 1], target: [15, -0.6, 0], span: [26, 11] },
 };
-let curView = "iso", userMoved = false, fly = null;
+let curView = Object.hasOwn(VIEWS, requested.get("view")) ? requested.get("view") : "iso";
+let userMoved = false, fly = null;
+pressGroup($("views"), $("views").querySelector('[data-view="' + curView + '"]'));
 const barH = () => document.querySelector(".transport").offsetHeight + 12;
 function viewPose(name) {
   const v = VIEWS[name], th = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
@@ -761,6 +808,7 @@ window.__sim = { clock, S, PHASES, pose, apply, seek, stepPhase, setPlaying, T_E
 window.addEventListener("pagehide", () => {
   cancelAnimationFrame(rafId); ro.disconnect(); controls.dispose();
   scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); }); });
+  shell.userData.rearTexture?.dispose();
   envTex.dispose(); pmrem.dispose(); renderer.dispose();
 });
 </script>
