@@ -90,7 +90,6 @@
   ol.plist li.on button { background: #232931; color: var(--text); }
   ol.plist li.on .n { color: var(--accent-2); }
   .note { color: var(--muted); font-size: 12px; }
-  .dim { opacity: .45; pointer-events: none; }
 
   @media (max-width: 860px) {
     body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 62vh) minmax(0, 1fr); }
@@ -108,9 +107,7 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
-<script src="ef88-assets.js?v=2"></script>
-<script src="ef88-left-assets.js"></script>
-<script src="exterior-shell.js"></script>
+<script src="exterior-shell.js?v=weathered"></script>
 </head>
 <body>
 <div class="webgl-object-shell" id="shell">
@@ -156,8 +153,8 @@
       <button data-b="see" aria-pressed="true">See-through</button>
     </div>
     <div id="bodyLevel">
-      <div class="row"><label for="bodyT">See-through level</label><output id="bodyO"></output></div>
-      <input id="bodyT" type="range" min="10" max="100" value="66">
+      <div class="row"><label for="bodyT">Body and magazine transparency</label><output id="bodyO"></output></div>
+      <input id="bodyT" type="range" min="0" max="100" value="66">
     </div>
   </section>
 
@@ -265,7 +262,6 @@ const M = {
   caseSpent: part(0xc9a24a, 0xffe14d, { metalness: 0.95, roughness: 0.28, side: THREE.DoubleSide, transparent: true }),
   steelDark: std({ color: 0x3c4046, metalness: 0.8, roughness: 0.45 }),
   pack: std({ color: 0xcfc8b2, metalness: 0, roughness: 0.6, transparent: true, opacity: 0.2, depthWrite: false }),
-  mag: std({ color: 0x5a4c3a, metalness: 0, roughness: 0.3, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide }),
   magSolid: std({ color: 0x1c1b19, metalness: 0, roughness: 0.7 }),
   brass: std({ color: 0xc9a24a, metalness: 0.95, roughness: 0.28, side: THREE.DoubleSide }),
   copper: std({ color: 0xb46a3c, metalness: 0.9, roughness: 0.33, side: THREE.DoubleSide }),
@@ -295,10 +291,8 @@ function helixGeo(turns, r, tube) { // unit length along +x
 }
 const unitX = (r) => { const g = new THREE.CylinderGeometry(r, r, 1, 16, 1, true); g.rotateZ(-Math.PI / 2); g.translate(0.5, 0, 0); return g; };
 
-// ---------- exterior: independently registered left and right relief surfaces ----------
-// Measured from reference-photos/ef88-right-side.jpg: 0.10509 cm per depth-map pixel (80.5 cm overall), bore axis on
-// row 120, muzzle tip at column 781.5. Placed so the photo's ejection port and magazine well sit over the mechanism.
-const PHOTO = { W: 800, H: 286, cm: 0.10509138, zMax: 3.2, muzzlePx: 781.5, axisPx: 120, muzzleX: 42.3 };
+// The registered side views include the complete exterior and its magazine.
+const PHOTO = { W: 800, H: 300, cm: 0.10509138, zMax: 5.5, muzzlePx: 781.5, axisPx: 120, muzzleX: 42.3 };
 const leftShell = M.shell.clone();
 const shellEdge = new THREE.MeshBasicMaterial({ color: 0x27292d, toneMapped: false });
 const shellMaterials = [M.shell, leftShell, shellEdge];
@@ -330,31 +324,41 @@ function colorTexture(image) {
   texture.needsUpdate = true;
   return texture;
 }
-function addExteriorFinish(material, pad, top) {
+function addExteriorFinish(material, finishes) {
   material.onBeforeCompile = shader => {
-    shader.uniforms.padMap = { value: pad };
-    shader.uniforms.topMap = { value: top };
+    for (const [name, texture] of Object.entries(finishes)) shader.uniforms[name] = { value: texture };
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute vec2 rearUv, topUv; attribute float rearBlend, topBlend; varying vec2 padUv, roofUv; varying float padMix, roofMix;")
-      .replace("#include <uv_vertex>", "#include <uv_vertex>\npadUv = rearUv; padMix = rearBlend; roofUv = topUv; roofMix = topBlend;");
+      .replace("#include <common>", `#include <common>
+        attribute vec2 rearUv, stripUv, endUv;
+        attribute vec4 finishMix;
+        varying vec2 vRear, vStrip, vEnd;
+        varying vec4 vFinish;`)
+      .replace("#include <uv_vertex>", `#include <uv_vertex>
+        vRear = rearUv; vStrip = stripUv; vEnd = endUv; vFinish = finishMix;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nuniform sampler2D padMap, topMap; varying vec2 padUv, roofUv; varying float padMix, roofMix;")
-      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, texture2D(topMap, roofUv).rgb, roofMix); diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(padMap, padUv).rgb, padMix);");
+      .replace("#include <common>", `#include <common>
+        uniform sampler2D upperMap, lowerMap, rearMap, frontMap;
+        varying vec2 vRear, vStrip, vEnd;
+        varying vec4 vFinish;`)
+      .replace("#include <map_fragment>", `#include <map_fragment>
+        diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(upperMap, vStrip).rgb, vFinish.x);
+        diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(lowerMap, vStrip).rgb, vFinish.y);
+        diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(rearMap, vRear).rgb, vFinish.z);
+        diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(frontMap, vEnd).rgb, vFinish.w);`);
   };
 }
-const rightAssets = window.EF88_ASSETS, leftAssets = window.EF88_LEFT;
-Promise.all([rightAssets.tex, rightAssets.depth, leftAssets.color, leftAssets.depth, leftAssets.pad, leftAssets.magazine, leftAssets.top].map(loadImg))
-.then(([rightPhoto, rightMap, leftPhoto, leftMap, padImage, magazineImage, topImage]) => {
+const appearance = ["right.webp", "left.webp", "right-relief.png", "left-relief.png", "upper.webp", "lower.webp", "rear.webp", "front.webp"];
+Promise.all(appearance.map(file => loadImg("appearance/" + file)))
+.then(([right, left, rightMap, leftMap, upper, lower, rear, front]) => {
   shell.geometry.dispose();
   shell.geometry = buildExteriorShell(THREE, PHOTO, readDepth(rightMap), readDepth(leftMap));
-  const pad = colorTexture(padImage), top = colorTexture(topImage);
-  for (const [material, image] of [[M.shell, rightPhoto], [leftShell, leftPhoto]]) {
+  const finishes = { upperMap: colorTexture(upper), lowerMap: colorTexture(lower), rearMap: colorTexture(rear), frontMap: colorTexture(front) };
+  shell.userData.finishTextures = Object.values(finishes);
+  for (const [material, image] of [[M.shell, right], [leftShell, left]]) {
     material.map = colorTexture(image);
-    addExteriorFinish(material, pad, top);
+    addExteriorFinish(material, finishes);
     material.needsUpdate = true;
   }
-  magazineFace.map = colorTexture(magazineImage);
-  magazineFace.needsUpdate = true;
   shellReady = true;
   syncBody();
   $("loading").hidden = true;
@@ -436,26 +440,12 @@ const live = makeRound(M.caseLive); rifle.add(live);
 const spent = new THREE.Mesh(caseGeo, M.caseSpent); spent.visible = false; rifle.add(spent);
 const shot = new THREE.Mesh(bulletGeo, M.copper); shot.visible = false; rifle.add(shot);
 
-// ---------- magazine (translucent polymer; not in the photo) ----------
+// ---------- magazine contents ----------
 const MAG_TOP = -1.3, PITCH = 0.43, MAG_CAP = 29, MAG_X = -18.2;
 const magCurve = (y) => 0.008 * (y + 1) * (y + 1);
 const magRounds = [];
 let follower, magSpring;
-const magazineFace = new THREE.MeshBasicMaterial({ toneMapped: false, side: THREE.DoubleSide });
-const magazineEdge = new THREE.MeshBasicMaterial({ color: 0x2e2d30, toneMapped: false, side: THREE.DoubleSide });
-const solidMagazine = makeExteriorMagazine(THREE, leftAssets.magazineOutline, magazineFace, magazineEdge);
-rifle.add(solidMagazine);
 {
-  const s = new THREE.Shape(), ys = []; for (let y = -0.9; y >= -15.61; y -= 1.47) ys.push(y);
-  s.moveTo(-18.55 + magCurve(ys[0]), ys[0]);
-  for (const y of ys) s.lineTo(-18.55 + magCurve(y), y);
-  for (const y of ys.slice().reverse()) s.lineTo(-12.05 + magCurve(y), y);
-  s.closePath();
-  const g = new THREE.ExtrudeGeometry(s, { depth: 2.5, bevelEnabled: false }); g.translate(0, 0, -1.25);
-  const magazineBody = new THREE.Mesh(g, M.mag);
-  magazineBody.renderOrder = 2;
-  rifle.add(magazineBody);
-  const yb = -15.6; box(-18.8 + magCurve(yb), -11.8 + magCurve(yb), yb - 0.45, yb, -1.4, 1.4, M.magSolid).castShadow = true;
   for (let i = 0; i < MAG_CAP; i++) { const r = makeRound(M.brass); magRounds.push(r); rifle.add(r); }
   follower = box(-3.0, 3.0, -0.18, 0.18, -1.1, 1.1, M.magSolid);
   magSpring = new THREE.Mesh(helixGeo(6, 0.75, 0.06), M.spring); magSpring.rotation.z = Math.PI / 2; rifle.add(magSpring);
@@ -701,7 +691,7 @@ function updateLabels() {
 // The complete opaque exterior covers parts that the see-through mode reveals.
 // Isolate those drawables so interior highlights cannot cross the photographed profile.
 const interior = new THREE.Group();
-const exteriorObjects = new Set([shell, solidMagazine, spent, shot, muzzle, muzzleLight]);
+const exteriorObjects = new Set([shell, spent, shot, muzzle, muzzleLight]);
 for (const child of [...rifle.children]) {
   if (!exteriorObjects.has(child)) interior.add(child);
 }
@@ -710,25 +700,35 @@ rifle.add(interior);
 // ---------- controls ----------
 function pressGroup(group, btn) { [...group.querySelectorAll("button")].forEach((c) => c.setAttribute("aria-pressed", c === btn)); }
 const requested = new URLSearchParams(location.search);
-let bodyMode = requested.get("body") === "solid" ? "solid" : "see";
-pressGroup($("body"), $("body").querySelector('[data-b="' + bodyMode + '"]'));
+const transparency = $("bodyT");
+let lastSeeThrough = Number(transparency.value);
+if (requested.get("body") === "solid") transparency.value = 0;
 function syncBody() {
-  const solid = bodyMode === "solid", v = +$("bodyT").value, o = solid ? 1 : 1 - v / 100;
-  $("bodyO").textContent = v + "%"; $("bodyLevel").classList.toggle("dim", solid);
-  shell.visible = shellReady && o > .015;
+  const level = Number(transparency.value);
+  const solid = level === 0;
+  const opacity = 1 - level / 100;
+  if (level > 0) lastSeeThrough = level;
+  pressGroup($("body"), $("body").querySelector(solid ? '[data-b="solid"]' : '[data-b="see"]'));
+  $("bodyO").textContent = level + "%";
+  shell.visible = shellReady && opacity > 0;
+  shell.castShadow = solid;
   for (const material of shellMaterials) {
-    material.opacity = o;
+    material.opacity = opacity;
     material.depthWrite = solid;
     if (material.transparent === solid) {
       material.transparent = !solid;
       material.needsUpdate = true;
     }
   }
-  solidMagazine.visible = solid && shellReady;
   interior.visible = !solid || !shellReady;
 }
-$("body").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; bodyMode = b.dataset.b; pressGroup($("body"), b); syncBody(); });
-$("bodyT").addEventListener("input", syncBody);
+$("body").addEventListener("click", e => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  transparency.value = button.dataset.b === "solid" ? 0 : lastSeeThrough;
+  syncBody();
+});
+transparency.addEventListener("input", syncBody);
 
 $("speed").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; clock.speed = +b.dataset.s; pressGroup($("speed"), b); });
 $("play").addEventListener("click", () => setPlaying(!clock.playing));
@@ -811,7 +811,7 @@ window.__sim = { clock, S, PHASES, pose, apply, seek, stepPhase, setPlaying, T_E
 window.addEventListener("pagehide", () => {
   cancelAnimationFrame(rafId); ro.disconnect(); controls.dispose();
   scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); }); });
-  shell.userData.rearTexture?.dispose();
+  shell.userData.finishTextures?.forEach(texture => texture.dispose());
   envTex.dispose(); pmrem.dispose(); renderer.dispose();
 });
 </script>

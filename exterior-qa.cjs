@@ -21,6 +21,19 @@ const base=process.argv[2]||'http://127.0.0.1:8743/';
  await page.waitForTimeout(750);await page.screenshot({path:'exterior-qa/live-top.png'});
  await page.click('button[data-view="left"]');await page.click('button[data-b="see"]');
  await page.waitForTimeout(750);await page.screenshot({path:'exterior-qa/live-see.png'});
+ const slider=page.locator('#bodyT');
+ for (const view of ['left','right']) {
+   await page.click('button[data-view="'+view+'"]');await page.waitForTimeout(660);
+   for(const level of [0,25,50,75,100]){
+     await slider.fill(String(level));await page.waitForTimeout(150);
+     if(await page.locator('#bodyO').textContent()!==level+'%')throw Error('Slider mismatch '+level);
+     await page.locator('canvas').screenshot({path:'exterior-qa/'+view+'-'+level+'.png'});
+   }
+ }
+ await slider.fill('38');await page.click('button[data-b="solid"]');
+ if(await slider.inputValue()!=='0')throw Error('Solid state');
+ await page.click('button[data-b="see"]');if(await slider.inputValue()!=='38')throw Error('Restore level');
+ await page.click('button[data-view="left"]');
  const active=await page.locator('button[data-view="left"]').getAttribute('aria-pressed');
  const see=await page.locator('button[data-b="see"]').getAttribute('aria-pressed');
  console.log(JSON.stringify({active,see,errors}));
