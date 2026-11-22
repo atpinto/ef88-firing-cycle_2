@@ -100,6 +100,16 @@
     .seg button { padding: 7px 8px; }
     .lbl { font-size: 10.5px; padding: 1px 5px; }
   }
+  #referenceView { display: none; }
+  .reference-mode #shell { display: grid; place-items: center; }
+  .reference-mode #referenceView {
+    display: block; width: 96%; aspect-ratio: 5 / 2;
+    background: url("appearance/reference-views.webp") center top / 100% 400% no-repeat;
+  }
+  .reference-mode .transport, .reference-mode .hint, .reference-mode .loading,
+  .reference-mode .note, .reference-mode #shell canvas,
+  .reference-mode .model-control, .reference-mode [hidden] { display: none; }
+  .reference-mode .err { display: block; inset: auto 12px 12px; padding: 8px; }
 </style>
 <script type="importmap">
 { "imports": {
@@ -107,6 +117,7 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
+<script src="reference-view.js"></script>
 <script src="exterior-shell.js?v=weathered"></script>
 </head>
 <body>
@@ -115,7 +126,8 @@
   <div id="overlay"><svg id="leaders"></svg></div>
   <div class="hint">Drag to rotate · scroll or pinch to zoom · right-drag to pan</div>
   <div class="loading" id="loading">Loading the rifle exterior…</div>
-  <div class="err" id="err">Could not start WebGL or load three.js. Check your internet connection and reload.</div>
+  <div id="referenceView" role="img" aria-label="Exterior with magazine"></div>
+  <div class="err" id="err">Photo view · 3D playback requires WebGL.</div>
 
   <div class="transport">
     <div class="phase"><span class="pn" id="phaseNum"></span><b id="phaseTitle"></b><p id="phaseText"></p></div>
@@ -170,7 +182,7 @@
     </div>
   </section>
 
-  <section>
+  <section class="model-control">
     <h2>Parts</h2>
     <div class="row"><span>Labels</span></div>
     <div class="seg" id="labelMode" role="group" aria-label="Labels">
@@ -180,19 +192,19 @@
     </div>
   </section>
 
-  <section>
+  <section class="model-control">
     <h2>Phases</h2>
     <ol class="plist" id="plist"></ol>
   </section>
 
-  <div class="note">Keys: <b>Space</b> play/pause, <b>←</b> <b>→</b> step one phase. The internal parts are approximate and for illustration only.<br>Photo: KarmaKangaroo, Wikimedia Commons, CC0.</div>
+  <div class="note">Keys: <b>Space</b> play/pause, <b>←</b> <b>→</b> step one phase. The internal parts are approximate and for illustration only.<br>Exterior imagery supplied for this project.</div>
   <footer class="credit">
     <img src="badge.png" alt="2HB D Coy 1 PL badge">
     <span><span>Created by LT Armando Teixeira Pinto</span><span>2HB D-COY 1 PL</span></span>
   </footer>
 </aside>
 
-<script type="module">
+<script type="module" onerror="showReferenceView()">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -209,7 +221,7 @@ const mod = (a, n) => ((a % n) + n) % n;
 
 let renderer;
 try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true }); }
-catch (e) { $("err").style.display = "grid"; $("loading").hidden = true; throw e; }
+catch (e) { showReferenceView(); throw e; }
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
