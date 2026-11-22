@@ -455,12 +455,25 @@ const shot = new THREE.Mesh(bulletGeo, M.copper); shot.visible = false; rifle.ad
 // ---------- magazine contents ----------
 const MAG_TOP = -1.3, PITCH = 0.43, MAG_CAP = 29, MAG_X = -18.2;
 const magCurve = (y) => 0.008 * (y + 1) * (y + 1);
+// Fit the magazine drawing as one object. The two pairs of pixel offsets are
+// measured on the shared side atlas at the shoulder and base of the visible wall.
+const magazineDrawing = new THREE.Group();
+const magazineShear = (38 - 32) / (250 - 194);
+const shoulderY = (PHOTO.axisPx - 194) * PHOTO.cm;
+magazineDrawing.matrixAutoUpdate = false;
+magazineDrawing.matrix.set(
+  1, -magazineShear, 0, -38 * PHOTO.cm + magazineShear * shoulderY,
+  0, 1, 0, 0,
+  0, 0, 1, 0,
+  0, 0, 0, 1
+);
+rifle.add(magazineDrawing);
 const magRounds = [];
 let follower, magSpring;
 {
-  for (let i = 0; i < MAG_CAP; i++) { const r = makeRound(M.brass); magRounds.push(r); rifle.add(r); }
-  follower = box(-3.0, 3.0, -0.18, 0.18, -1.1, 1.1, M.magSolid);
-  magSpring = new THREE.Mesh(helixGeo(6, 0.75, 0.06), M.spring); magSpring.rotation.z = Math.PI / 2; rifle.add(magSpring);
+  for (let i = 0; i < MAG_CAP; i++) { const r = makeRound(M.brass); magRounds.push(r); magazineDrawing.add(r); }
+  follower = box(-3.0, 3.0, -0.18, 0.18, -1.1, 1.1, M.magSolid, magazineDrawing);
+  magSpring = new THREE.Mesh(helixGeo(6, 0.75, 0.06), M.spring); magSpring.rotation.z = Math.PI / 2; magazineDrawing.add(magSpring);
 }
 
 // ---------- effects ----------
@@ -658,6 +671,7 @@ function showPhase(i) {
 
 // ---------- part labels ----------
 const hammerTip = () => [HAM_PIVOT.x - HAM_LEN * Math.sin(S.hammer), HAM_PIVOT.y + HAM_LEN * Math.cos(S.hammer), 0.5];
+const magazineLabel = new THREE.Vector3(MAG_X + magCurve(-12.5) + 2.865, -12.5, 1.25).applyMatrix4(magazineDrawing.matrix).toArray();
 const LABELS = {
   trigger: ["Trigger", () => [2.3 - TRIG_TRAVEL * S.pull, -5.6, 0.45], 52, 34],
   rods: ["Transfer rods", () => [-7, ROD_Y, ROD_Z], 8, 58],
@@ -671,7 +685,7 @@ const LABELS = {
   guide: ["Guide rod and return spring", () => [3, GAS_Y, GAS_Z], 10, -78],
   piston: ["Gas piston", () => [PISTON_X - S.piston, GAS_Y, GAS_Z], -34, -62],
   gas: ["Gas port", () => [PORT_X, -0.5, 0.9], 56, -46],
-  mag: ["Magazine", () => [-13.4, -12.5, 1.25], 72, 16],
+  mag: ["Magazine", () => magazineLabel, 72, 16],
   case: ["Cartridge case", () => S.spentOn ? (spent.visible ? [spent.position.x + 2, spent.position.y, spent.position.z] : null) : S.liveOn ? [S.lx + 2.2, S.ly, S.lz + 0.4] : null, 62, 44],
   bullet: ["Bullet", () => S.bulletOn && S.bx < MUZZLE_X + 6 ? [S.bx + 5, 0, 0] : null, 0, -44],
 };
