@@ -19,6 +19,17 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth) {
       }
     }
   }
+  const upper = new Int32Array(width).fill(height);
+  const lower = new Int32Array(width).fill(-1);
+  for (let y = 0; y < height; ++y) {
+    for (let x = 0; x < width; ++x) {
+      const p = y * width + x;
+      if (rightDepth[p] || leftDepth[p]) {
+        upper[x] = Math.min(upper[x], y);
+        lower[x] = y;
+      }
+    }
+  }
   function vertex(pixel, z) {
     const x = pixel % width, y = Math.floor(pixel / width);
     const index = position.length / 3;
@@ -77,51 +88,38 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth) {
   geometry.setIndex(new THREE.Uint32BufferAttribute(indices.flat(), 1));
   geometry.computeVertexNormals();
   const normals = geometry.attributes.normal;
-  const topUv = new Float32Array(normals.count * 2);
-  const topBlend = new Float32Array(normals.count);
+  const stripUv = [], endUv = [], mix = [];
+  const saturate = value => Math.max(0, Math.min(1, value));
+  const weight = normal => {
+    const t = saturate((normal - .32) / .53);
+    return t * t * (3 - 2 * t);
+  };
   for (let i = 0; i < normals.count; ++i) {
-    const u = uv[i * 2], v = uv[i * 2 + 1];
-    const z = position[i * 3 + 2];
-    topUv[i * 2] = u;
-    topUv[i * 2 + 1] = Math.max(0, Math.min(1, .5 - z / (zMax * 2)));
-    // A continuous strip from the overhead photograph spans both sides of the upper ridge.
-    const t = Math.max(0, Math.min(1, (normals.getY(i) - .24) / .61));
-    topBlend[i] = v > .53 ? t * t * (3 - 2 * t) : 0;
-    rearBlend[i] *= Math.max(0, Math.min(1, (-normals.getX(i) - .32) / .48));
+    const u = uv[2*i], v = uv[2*i+1], z = position[3*i+2];
+    const x = Math.floor(u * width), y = Math.floor((1-v) * height);
+    stripUv.push(u, saturate(.5 - z / (2*zMax)));
+    const nx = normals.getX(i), ny = normals.getY(i);
+    const roof = weight(ny) * saturate(1 - (y - upper[x] - 5) / 18);
+    const base = weight(-ny) * saturate(1 - (lower[x] - y - 4) / 14);
+    const rear = rearBlend[i] * weight(-nx);
+    // Map the visible end faces into the straight-on exterior reference.
+    let endX = 0, endY = 0, front = 0;
+    if (x > 772) {
+      endX = 169 - 19*z; endY = 201 + (y-120)*1.85;
+      front = saturate((x-772)/7);
+    } else if (x > 368 && x < 392 && y < 66) {
+      endX = 177 - 16*z; endY = 83 + (y-42)*1.28;
+      front = saturate((x-368)/12);
+    } else if (x > 495 && x < 523 && z > 2.2 && y > 113 && y < 156) {
+      endX = 102 - (z-3.5)*17; endY = 212 + (y-134)*1.65;
+      front = saturate((x-495)/9);
+    }
+    endUv.push(saturate(endX/365), 1-saturate(endY/450));
+    mix.push(roof, base, rear, front * weight(nx));
   }
-  geometry.setAttribute("topUv", new THREE.Float32BufferAttribute(topUv, 2));
-  geometry.setAttribute("topBlend", new THREE.Float32BufferAttribute(topBlend, 1));
-  geometry.setAttribute("rearBlend", new THREE.Float32BufferAttribute(rearBlend, 1));
+  geometry.setAttribute("stripUv", new THREE.Float32BufferAttribute(stripUv, 2));
+  geometry.setAttribute("endUv", new THREE.Float32BufferAttribute(endUv, 2));
+  geometry.setAttribute("finishMix", new THREE.Float32BufferAttribute(mix, 4));
   geometry.computeBoundingSphere();
   return geometry;
-}
-
-// Extrude the photographed outline so the side texture includes the angled base and lip.
-function makeExteriorMagazine(THREE, outline, face, edge) {
-  const contour = outline.map(([x, y]) => new THREE.Vector2(x, y));
-  const front = THREE.ShapeUtils.triangulateShape(contour, []);
-  const positions = [], uvs = [], indices = [];
-  for (const z of [-1.25, 1.25]) {
-    for (const [x, y, u, v] of outline) {
-      positions.push(x, y, z);
-      uvs.push(u, v);
-    }
-  }
-  const n = outline.length;
-  for (const [a, b, c] of front) indices.push(c, b, a, n+a, n+b, n+c);
-  const caps = indices.length;
-  for (let i = 0; i < n; ++i) {
-    const j = (i + 1) % n;
-    indices.push(i, j, n+i, j, n+j, n+i);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
-  geometry.addGroup(0, caps, 0);
-  geometry.addGroup(caps, indices.length - caps, 1);
-  geometry.computeVertexNormals();
-  const mesh = new THREE.Mesh(geometry, [face, edge]);
-  mesh.castShadow = true;
-  return mesh;
 }
