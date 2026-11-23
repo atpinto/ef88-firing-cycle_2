@@ -677,7 +677,7 @@ const magazineLabel = new THREE.Vector3(MAG_X + magCurve(-12.5) + 2.865, -12.5, 
 // Both registered side images contain the visible trigger at this texture location.
 const exteriorTriggerLabel = [(352 - PHOTO.muzzlePx) * PHOTO.cm + PHOTO.muzzleX, (PHOTO.axisPx - 170) * PHOTO.cm, 0];
 const LABELS = {
-  trigger: ["Trigger", () => shell.visible ? exteriorTriggerLabel : [2.3 - TRIG_TRAVEL * S.pull, -5.6, 0.45], 52, 34],
+  trigger: ["Trigger", () => shell.visible ? exteriorTriggerLabel : [2.3 - TRIG_TRAVEL * S.pull, -5.6, 0.45], 25, 70],
   rods: ["Transfer rods", () => [-7, ROD_Y, ROD_Z], 8, 58],
   sear: ["Sear", () => { const a = SEAR_REST + 0.25 * S.sear; return [-31 - SEAR_LEN * Math.sin(a), -4.9 + SEAR_LEN * Math.cos(a), 0.3]; }, -58, -40],
   disc: ["Disconnector", () => [-30.5, -4.3, 0.75], -8, 78],
