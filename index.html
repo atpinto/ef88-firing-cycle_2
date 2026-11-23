@@ -444,7 +444,7 @@ const schematicTrigger = new THREE.Group();
 trig.add(schematicTrigger);
 { const t = box(2.0, 2.6, -6.0, -3.5, -0.45, 0.45, M.trigger, schematicTrigger); t.rotation.z = 0.1; }
 box(1.9, 2.9, -3.6, -2.1, -1.75, 1.75, M.trigger, schematicTrigger);
-for (const z of [ROD_Z, -ROD_Z]) cylX(-29.06, 2.4, 0.14, 0.14, M.bar, trig, ROD_Y, z, 12);
+for (const z of [ROD_Z, -ROD_Z]) cylX(-29.06, -0.1, 0.14, 0.14, M.bar, trig, ROD_Y, z, 12);
 
 // ---------- cartridges ----------
 const caseGeo = latheX([[0, 0], [0, 0.47], [0.12, 0.47], [0.16, 0.4], [0.28, 0.4], [0.34, 0.47], [3.55, 0.47], [3.95, 0.32], [4.47, 0.32], [4.47, 0.27]], 18);
