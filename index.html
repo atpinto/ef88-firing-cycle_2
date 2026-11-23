@@ -118,7 +118,7 @@
 } }
 </script>
 <script src="reference-view.js"></script>
-<script src="exterior-shell.js?v=surface-detail-2"></script>
+<script src="exterior-shell.js?v=overhead-ridge-1"></script>
 </head>
 <body>
 <div class="webgl-object-shell" id="shell">
@@ -352,19 +352,19 @@ function addExteriorFinish(material, finishes) {
     for (const [name, texture] of Object.entries(finishes)) shader.uniforms[name] = { value: texture };
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", `#include <common>
-        attribute vec2 rearUv, stripUv, endUv;
+        attribute vec2 rearUv, stripUv, endUv, overheadUv;
         attribute vec4 finishMix;
-        varying vec2 vRear, vStrip, vEnd;
+        varying vec2 vRear, vStrip, vEnd, vOverhead;
         varying vec4 vFinish;`)
       .replace("#include <uv_vertex>", `#include <uv_vertex>
-        vRear = rearUv; vStrip = stripUv; vEnd = endUv; vFinish = finishMix;`);
+        vOverhead = overheadUv; vRear = rearUv; vStrip = stripUv; vEnd = endUv; vFinish = finishMix;`);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>
         uniform sampler2D upperMap, lowerMap, rearMap, frontMap;
-        varying vec2 vRear, vStrip, vEnd;
+        varying vec2 vRear, vStrip, vEnd, vOverhead;
         varying vec4 vFinish;`)
       .replace("#include <map_fragment>", `#include <map_fragment>
-        diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(upperMap, vStrip).rgb, vFinish.x);
+        diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(upperMap, vOverhead).rgb, vFinish.x);
         diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(lowerMap, vStrip).rgb, vFinish.y);
         diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(rearMap, vRear).rgb, vFinish.z);
         diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(frontMap, vEnd).rgb, vFinish.w);`);
@@ -446,7 +446,7 @@ function addOpticFaces(front, rear) {
   }
 }
 
-const appearance = ["right.webp", "left.webp", "right-relief.png", "left-relief.png", "upper.webp", "lower.webp", "rear.webp", "front.webp", "optic-rear.webp"];
+const appearance = ["right.webp", "left.webp", "right-relief.png", "left-relief.png", "overhead.webp", "lower.webp", "rear.webp", "front.webp", "optic-rear.webp"];
 Promise.all(appearance.map(file => loadImg("appearance/" + file)))
 .then(([right, left, rightMap, leftMap, upper, lower, rear, front, opticRear]) => {
   shell.geometry.dispose();

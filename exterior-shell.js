@@ -96,10 +96,29 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth, rightSurface, l
       }
     }
   }
-  function vertex(pixel, z) {
+  // Register matching upper outlines before building the shared ridge. The
+  // independent side photographs differ by a few pixels along the same edge.
+  const tops = [rightDepth, leftDepth].map(depth => {
+    const top = new Int32Array(width).fill(height);
+    for (let x = 0; x < width; ++x) {
+      for (let y = 1; y < height - 1; ++y) {
+        if (depth[y * width + x]) { top[x] = y; break; }
+      }
+    }
+    return top;
+  });
+  const crown = new Int32Array(width).fill(-1);
+  const registered = x => tops[0][x] < height && tops[1][x] < height &&
+    Math.abs(tops[0][x] - tops[1][x]) <= 6;
+  // Rounded heel and nearly parallel stock sides traced in the overhead view.
+  function stockRadius(x) {
+    const t = Math.max(0, Math.min(1, (x - 16) / 22));
+    return 25.2 * cm * Math.sqrt(t * (2 - t));
+  }
+  function vertex(pixel, z, elevationRow = Math.floor(pixel / width)) {
     const x = pixel % width, y = Math.floor(pixel / width);
     const index = position.length / 3;
-    position.push((x - muzzlePx) * cm + muzzleX, (axisPx - y) * cm, z);
+    position.push((x - muzzlePx) * cm + muzzleX, (axisPx - elevationRow) * cm, z);
     uv.push((x + .5) / width, 1 - (y + .5) / height);
     const radius = Math.max(.3, rowRadius[y] * zMax / 255);
     rearUv.push(Math.max(0, Math.min(1, .5 + z / (2 * radius))), 1 - Math.max(0, Math.min(1, (y - 100) / 155)));
@@ -107,6 +126,7 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth, rightSurface, l
     return index;
   }
   for (const [sign, depth, surface] of [[1, rightDepth, rightSurface], [-1, leftDepth, leftSurface]]) {
+    const top = tops[sign > 0 ? 0 : 1];
     const index = new Int32Array(width * height).fill(-1);
     for (let y = 1; y < height - 1; ++y) {
       for (let x = 1; x < width - 1; ++x) {
@@ -115,12 +135,36 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth, rightSurface, l
         // End the one-pixel silhouette rim at the join between sides.
         const rim = !depth[p - 1] || !depth[p + 1] || !depth[p - width] || !depth[p + width]
           || !depth[p - width - 1] || !depth[p + width + 1] || !depth[p - width + 1] || !depth[p + width - 1];
-        index[p] = vertex(p, rim ? 0 : sign * (surface ? surface[p] : (depth[p] - 1) / 254 * zMax));
+        const row = y - top[x];
+        const join = registered(x);
+        const ridgeRow = (tops[0][x] + tops[1][x]) / 2;
+        if (join && row === 0) {
+          if (crown[x] < 0) crown[x] = vertex(p, 0, ridgeRow);
+          index[p] = crown[x];
+          continue;
+        }
+        let radius = rim ? 0 : (surface ? surface[p] : (depth[p] - 1) / 254 * zMax);
+        if (x < 218 && row >= 0 && !rim) {
+          // A shallow elliptical crown meets broad sidewalls. Fade into the
+          // original side profile below the shoulder and under the optic.
+          const t = Math.min(1, row / 8);
+          const crownRadius = stockRadius(x) * Math.sqrt(t * (2 - t));
+          const blend = Math.min(1, (218-x)/12, Math.max(0,(35-row)/16));
+          radius += (crownRadius-radius)*blend;
+        }
+        const elevation = join ? y + (ridgeRow-top[x])*Math.max(0,1-row/9) : y;
+        index[p] = vertex(p, sign * radius, elevation);
       }
     }
     sideIndices.push(index);
   }
   function mid(p) {
+    const x = p % width;
+    // A centre-plane closure from the taller side must end at the joined
+    // ridge as well, or its edge will protrude through the crown at a tilt.
+    if (crown[x] >= 0 && Math.floor(p / width) <= Math.max(tops[0][x], tops[1][x])) {
+      return crown[x];
+    }
     if (centre[p] < 0) centre[p] = vertex(p, 0);
     return centre[p];
   }
@@ -154,7 +198,7 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth, rightSurface, l
   geometry.setIndex(new THREE.Uint32BufferAttribute(indices.flat(), 1));
   geometry.computeVertexNormals();
   const normals = geometry.attributes.normal;
-  const stripUv = [], endUv = [], mix = [];
+  const overheadUv = [], stripUv = [], endUv = [], mix = [];
   const saturate = value => Math.max(0, Math.min(1, value));
   const weight = normal => {
     const t = saturate((normal - .32) / .53);
@@ -172,11 +216,17 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth, rightSurface, l
       localRadius = Math.max(localRadius,field[j*width+x]);
     }
     stripUv.push(u, saturate(.5 - z / (2*Math.max(.3,localRadius || zMax))));
+    // The straightened top photo shares the side maps’ longitudinal scale.
+    // Sample across the photographed width in a single coordinate system.
+    const centreRow = 60 + 4 * saturate((550-x)/300);
+    overheadUv.push(u, saturate(1 - (centreRow + z/cm)/120));
     const nx = normals.getX(i), ny = normals.getY(i);
     const tube = x >= 219 && x <= 384 && y < 70;
-    const roof = (tube ? 0 : 1) * weight(ny) * saturate(1 - (y - upper[x] - 5) / 18);
+    const stock = x < 218;
+    const roofBand = tube ? saturate((46-y)/8) : saturate(1 - (y - upper[x] - 5) / 18);
+    const roof = (stock && y <= upper[x]+5 ? 1 : weight(ny)) * roofBand;
     const base = (tube ? 0 : 1) * weight(-ny) * saturate(1 - (lower[x] - y - 4) / 14);
-    const rear = rearBlend[i] * weight(-nx);
+    const rear = rearBlend[i] * weight(-nx) * (1-roof);
     // Map the visible end faces into the straight-on exterior reference.
     let endX = 0, endY = 0, front = 0;
     if (x > 772) {
@@ -192,6 +242,7 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth, rightSurface, l
     endUv.push(saturate(endX/365), 1-saturate(endY/450));
     mix.push(roof, base, rear, front * weight(nx));
   }
+  geometry.setAttribute("overheadUv", new THREE.Float32BufferAttribute(overheadUv, 2));
   geometry.setAttribute("stripUv", new THREE.Float32BufferAttribute(stripUv, 2));
   geometry.setAttribute("endUv", new THREE.Float32BufferAttribute(endUv, 2));
   geometry.setAttribute("finishMix", new THREE.Float32BufferAttribute(mix, 4));
