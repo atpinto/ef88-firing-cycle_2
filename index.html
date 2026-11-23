@@ -118,7 +118,7 @@
 } }
 </script>
 <script src="reference-view.js"></script>
-<script src="exterior-shell.js?v=weathered"></script>
+<script src="exterior-shell.js?v=surface-detail-2"></script>
 </head>
 <body>
 <div class="webgl-object-shell" id="shell">
@@ -179,6 +179,9 @@
       <button class="chip" data-view="top" aria-pressed="false">Top</button>
       <button class="chip" data-view="action" aria-pressed="false">Action</button>
       <button class="chip" data-view="gas" aria-pressed="false">Gas system</button>
+      <button class="chip" data-view="front" aria-pressed="false">Front</button>
+      <button class="chip" data-view="rear" aria-pressed="false">Rear</button>
+      <button class="chip" data-view="optic" aria-pressed="false">Optic</button>
     </div>
   </section>
 
@@ -330,6 +333,13 @@ function readDepth(image) {
   const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   return Uint8Array.from({ length: PHOTO.W * PHOTO.H }, (_, i) => rgba[i * 4]);
 }
+function photoPixels(image) {
+  const surface = document.createElement("canvas");
+  surface.width = PHOTO.W; surface.height = PHOTO.H;
+  const ctx = surface.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0, PHOTO.W, PHOTO.H);
+  return ctx.getImageData(0, 0, PHOTO.W, PHOTO.H).data;
+}
 function colorTexture(image) {
   const texture = new THREE.Texture(image);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -412,14 +422,42 @@ function addCockingHandle() {
   shell.add(grip);
 }
 
-const appearance = ["right.webp", "left.webp", "right-relief.png", "left-relief.png", "upper.webp", "lower.webp", "rear.webp", "front.webp"];
+// Recessed, round optic end faces retain the supplied honeycomb and lens
+// imagery when orbiting to the front/rear, instead of collapsing into the seam.
+const opticMaterials = [];
+function addOpticFaces(front, rear) {
+  for (const [isFront, image, pixelX] of [[true,front,383],[false,rear,219]]) {
+    const radius = 2.02;
+    const geometry = new THREE.CircleGeometry(radius,64);
+    if (isFront) {
+      const pos = geometry.attributes.position, uv = geometry.attributes.uv;
+      for (let i=0; i<pos.count; ++i) {
+        uv.setXY(i,(177+pos.getX(i)*15.1)/365,1-(83-pos.getY(i)*15.1)/450);
+      }
+    }
+    geometry.rotateY(isFront ? Math.PI/2 : -Math.PI/2);
+    const material = new THREE.MeshBasicMaterial({map:colorTexture(image),toneMapped:false});
+    opticMaterials.push(material);
+    const face = new THREE.Mesh(geometry,material);
+    face.position.set((pixelX-PHOTO.muzzlePx)*PHOTO.cm+PHOTO.muzzleX,
+      (PHOTO.axisPx-44)*PHOTO.cm,0);
+    face.renderOrder = shell.renderOrder;
+    shell.add(face);
+  }
+}
+
+const appearance = ["right.webp", "left.webp", "right-relief.png", "left-relief.png", "upper.webp", "lower.webp", "rear.webp", "front.webp", "optic-rear.webp"];
 Promise.all(appearance.map(file => loadImg("appearance/" + file)))
-.then(([right, left, rightMap, leftMap, upper, lower, rear, front]) => {
+.then(([right, left, rightMap, leftMap, upper, lower, rear, front, opticRear]) => {
   shell.geometry.dispose();
   const leftDepth = readDepth(leftMap);
   const receiverPhoto = clearHandlePatch(left, leftDepth);
-  shell.geometry = buildExteriorShell(THREE, PHOTO, readDepth(rightMap), leftDepth);
+  const rightDepth = readDepth(rightMap);
+  shell.geometry = buildExteriorShell(THREE, PHOTO, rightDepth, leftDepth,
+    refineExteriorDepth(PHOTO, rightDepth, photoPixels(right)),
+    refineExteriorDepth(PHOTO, leftDepth, photoPixels(receiverPhoto)));
   addCockingHandle();
+  addOpticFaces(front, opticRear);
   const finishes = { upperMap: colorTexture(upper), lowerMap: colorTexture(lower), rearMap: colorTexture(rear), frontMap: colorTexture(front) };
   shell.userData.finishTextures = Object.values(finishes);
   for (const [material, image] of [[M.shell, right], [leftShell, receiverPhoto]]) {
@@ -808,7 +846,7 @@ function syncBody() {
   shell.visible = shellReady && opacity > 0;
   schematicTrigger.visible = true;
   shell.castShadow = solid;
-  for (const material of [...shellMaterials, handleFinish]) {
+  for (const material of [...shellMaterials, handleFinish, ...opticMaterials]) {
     material.opacity = opacity;
     material.depthWrite = solid;
     if (material.transparent === solid) {
@@ -850,6 +888,9 @@ const VIEWS = {
   top: { dir: [0, 1, 0.001], target: [2, 0, 0], span: [88, 16] },
   action: { dir: [0.18, 0.14, 1], target: [-21, -2.6, 0], span: [38, 17] },
   gas: { dir: [0.3, 0.26, 1], target: [15, -0.6, 0], span: [26, 11] },
+  front: { dir: [1, 0, 0.001], target: [2, -3, 0], span: [16, 32] },
+  rear: { dir: [-1, 0, 0.001], target: [-20, -3, 0], span: [16, 32] },
+  optic: { dir: [0.65, 0.18, 1], target: [-8.3, 7.5, 0], span: [23, 14] },
 };
 let curView = Object.hasOwn(VIEWS, requested.get("view")) ? requested.get("view") : "iso";
 let userMoved = false, fly = null;
