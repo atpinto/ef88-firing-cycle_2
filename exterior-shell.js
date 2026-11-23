@@ -1,6 +1,72 @@
+// Exterior-only surface reconstruction. The source masks keep the photographed
+// silhouette; these fields add rounded cross-sections and restrained surface relief.
+function refineExteriorDepth(frame, depth, rgba) {
+  const {W: width, H: height, cm, zMax} = frame;
+  const result = new Float32Array(depth.length);
+  const distance = new Float32Array(depth.length);
+  for (let i = 0; i < depth.length; ++i) distance[i] = depth[i] ? 1000 : 0;
+  // Chamfer distance softens the thin, pinched seam around the old flat profiles.
+  for (let y = 1; y < height; ++y) for (let x = 1; x < width; ++x) {
+    const p = y*width+x;
+    distance[p] = Math.min(distance[p], distance[p-1]+1, distance[p-width]+1);
+  }
+  for (let y = height-2; y >= 0; --y) for (let x = width-2; x >= 0; --x) {
+    const p = y*width+x;
+    distance[p] = Math.min(distance[p], distance[p+1]+1, distance[p+width]+1);
+  }
+  const luma = (x,y) => {
+    const p = 4*(Math.max(0,Math.min(height-1,y))*width+Math.max(0,Math.min(width-1,x)));
+    return (rgba[p]*.2126+rgba[p+1]*.7152+rgba[p+2]*.0722)/255;
+  };
+  const round = t => Math.sqrt(Math.max(0,1-t*t));
+  for (let y = 1; y < height-1; ++y) for (let x = 1; x < width-1; ++x) {
+    const p = y*width+x;
+    if (!depth[p]) continue;
+    let z = (depth[p]-1)/254*zMax;
+    const edge = Math.min(1, Math.max(0,(distance[p]-1)/6));
+    z *= Math.sqrt(edge*(2-edge));
+    // The optic is a tube, rather than a rectangular slab with a pointed end.
+    if (x >= 221 && x <= 382 && y < 70) {
+      if (y >= 25 && y <= 64) {
+        z = 2.02*round((y-44.5)/19.5);
+        // Preserve the side adjustment dial's protrusion.
+        if (x > 244 && x < 285 && y > 30 && y < 61) z += Math.max(0,(depth[p]-90)/254*zMax)*.35;
+      } else if (y < 25) {
+        // Small sight tabs sit near the tube's centre plane; they must not
+        // extrude across its full diameter like a folded sheet.
+        z = Math.min(z,.38);
+      }
+    }
+    // Visible barrel and foregrip cross-sections follow their photographed edges.
+    if (x > 546 && y > 106 && y < 134) {
+      let top=y, bottom=y;
+      while (top > 100 && depth[(top-1)*width+x]) --top;
+      while (bottom < 140 && depth[(bottom+1)*width+x]) ++bottom;
+      z = (bottom-top)*cm/2*round((y-(top+bottom)/2)/Math.max(1,(bottom-top)/2));
+    }
+    if (x > 498 && x < 534 && y > 162 && y < 242) {
+      let left=x, right=x;
+      while (left > 490 && depth[y*width+left-1]) --left;
+      while (right < 538 && depth[y*width+right+1]) ++right;
+      z = (right-left)*cm/2*round((x-(left+right)/2)/Math.max(1,(right-left)/2));
+    }
+    // Restrict photograph-derived relief to molded/knurled details. Broad paint
+    // mottling on the stock must stay color, rather than becoming bumpy geometry.
+    const magazine = y > 180 && x > 165 && x < 252;
+    const gripRings = y > 205 && y < 239 && x > 500 && x < 532;
+    const rail = y > 80 && y < 94 && x > 215 && x < 521;
+    if (distance[p] > 2 && (magazine || gripRings || rail)) {
+      const local = (luma(x-4,y)+luma(x+4,y)+luma(x,y-4)+luma(x,y+4))/4;
+      z += Math.max(-.10, Math.min(.16,(luma(x,y)-local)*(magazine ? 1.5 : .8)));
+    }
+    result[p] = Math.max(0,z);
+  }
+  return result;
+}
+
 // Each side keeps its own silhouette. Where one side extends beyond the other,
 // close only the exposed area on the centre plane.
-function buildExteriorShell(THREE, frame, rightDepth, leftDepth) {
+function buildExteriorShell(THREE, frame, rightDepth, leftDepth, rightSurface, leftSurface) {
   const {W: width, H: height, cm, zMax, muzzlePx, axisPx, muzzleX} = frame;
   const position = [], uv = [], rearUv = [], rearBlend = [], indices = [[], [], []];
   const centre = new Int32Array(width * height).fill(-1);
@@ -40,7 +106,7 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth) {
     rearBlend.push(y >= 99 && x < 128 ? Math.max(0, Math.min(1, 1 - (x - rowStart[y] - 6) / 24)) : 0);
     return index;
   }
-  for (const [sign, depth] of [[1, rightDepth], [-1, leftDepth]]) {
+  for (const [sign, depth, surface] of [[1, rightDepth, rightSurface], [-1, leftDepth, leftSurface]]) {
     const index = new Int32Array(width * height).fill(-1);
     for (let y = 1; y < height - 1; ++y) {
       for (let x = 1; x < width - 1; ++x) {
@@ -49,7 +115,7 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth) {
         // End the one-pixel silhouette rim at the join between sides.
         const rim = !depth[p - 1] || !depth[p + 1] || !depth[p - width] || !depth[p + width]
           || !depth[p - width - 1] || !depth[p + width + 1] || !depth[p - width + 1] || !depth[p + width - 1];
-        index[p] = vertex(p, rim ? 0 : sign * (depth[p] - 1) / 254 * zMax);
+        index[p] = vertex(p, rim ? 0 : sign * (surface ? surface[p] : (depth[p] - 1) / 254 * zMax));
       }
     }
     sideIndices.push(index);
@@ -97,10 +163,19 @@ function buildExteriorShell(THREE, frame, rightDepth, leftDepth) {
   for (let i = 0; i < normals.count; ++i) {
     const u = uv[2*i], v = uv[2*i+1], z = position[3*i+2];
     const x = Math.floor(u * width), y = Math.floor((1-v) * height);
-    stripUv.push(u, saturate(.5 - z / (2*zMax)));
+    // Use the local width of each part, so narrow tubes do not sample only
+    // a tiny band of the overhead/underside reference.
+    const edgeY = y < (upper[x]+lower[x])/2 ? upper[x] : lower[x];
+    const field = z >= 0 ? rightSurface : leftSurface;
+    let localRadius = 0;
+    if (field) for (let j = Math.max(0,edgeY-24); j <= Math.min(height-1,edgeY+24); ++j) {
+      localRadius = Math.max(localRadius,field[j*width+x]);
+    }
+    stripUv.push(u, saturate(.5 - z / (2*Math.max(.3,localRadius || zMax))));
     const nx = normals.getX(i), ny = normals.getY(i);
-    const roof = weight(ny) * saturate(1 - (y - upper[x] - 5) / 18);
-    const base = weight(-ny) * saturate(1 - (lower[x] - y - 4) / 14);
+    const tube = x >= 219 && x <= 384 && y < 70;
+    const roof = (tube ? 0 : 1) * weight(ny) * saturate(1 - (y - upper[x] - 5) / 18);
+    const base = (tube ? 0 : 1) * weight(-ny) * saturate(1 - (lower[x] - y - 4) / 14);
     const rear = rearBlend[i] * weight(-nx);
     // Map the visible end faces into the straight-on exterior reference.
     let endX = 0, endY = 0, front = 0;
