@@ -16,6 +16,7 @@ const base=process.argv[2]||'http://127.0.0.1:8743/';
  const assert = require('node:assert/strict');
  await page.evaluate(()=>{window.__sim.setPlaying(false);window.__sim.seek(0)});
  const slider = page.locator('#bodyT');
+ const drawn = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
  const dot = () => page.evaluate(() => {
    const i = [...document.querySelectorAll('#overlay .lbl')].findIndex(e=>e.textContent==='Trigger');
    const c = document.querySelectorAll('#leaders circle')[i];
@@ -23,13 +24,14 @@ const base=process.argv[2]||'http://127.0.0.1:8743/';
  });
  for (const side of ['left','right']) {
    await page.click('button[data-view="'+side+'"]');await page.waitForTimeout(850);
-   await slider.fill('0');await page.waitForTimeout(250); const solid=await dot();
-   await slider.fill('50');await page.waitForTimeout(250); const blend=await dot();
+   await slider.fill('0');await drawn(); const solid=await dot();
+   await slider.fill('50');await drawn(); const blend=await dot();
    assert.ok(Math.hypot(blend[0]-solid[0],blend[1]-solid[1])<2);
    await page.screenshot({path:'exterior-qa/trigger-'+side+'.png'});
-   await slider.fill('100');await page.waitForTimeout(250);const schematic=await dot();
+   await slider.fill('100');await drawn();const schematic=await dot();
+   console.log(side,{solid,blend,schematic});
    assert.ok(Math.hypot(schematic[0]-solid[0],schematic[1]-solid[1])>10);
-   await slider.fill('50');await page.waitForTimeout(250);const restored=await dot();
+   await slider.fill('50');await drawn();const restored=await dot();
    assert.ok(Math.hypot(restored[0]-solid[0],restored[1]-solid[1])<2);
    console.log(side, {solid,blend,schematic,restored});
  }
