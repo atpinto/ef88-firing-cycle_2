@@ -398,8 +398,10 @@ function addCockingHandle() {
   const points = geometry.attributes.position;
   for (let i = 0; i < points.count; ++i) {
     const t = points.getY(i), u = points.getX(i), v = points.getZ(i);
-    points.setXYZ(i, 1.48*u - 0.82*t, 3.58*t + 0.25*u*t,
-      0.62*v - 2.85*t + 0.35*(1-t)*(1-t));
+    // Halve each section's centreline offset from the base, preserving its profile.
+    const centreZ = -2.85*t + 0.35*(1-t)*(1-t);
+    points.setXYZ(i, 1.48*u - 0.41*t, 1.79*t + 0.25*u*t,
+      0.62*v + 0.35 + 0.5*(centreZ - 0.35));
   }
   geometry.computeVertexNormals();
   const grip = new THREE.Mesh(geometry, handleFinish);
