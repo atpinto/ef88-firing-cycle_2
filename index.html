@@ -741,7 +741,7 @@ function syncBody() {
   pressGroup($("body"), $("body").querySelector(solid ? '[data-b="solid"]' : '[data-b="see"]'));
   $("bodyO").textContent = level + "%";
   shell.visible = shellReady && opacity > 0;
-  schematicTrigger.visible = !shell.visible;
+  schematicTrigger.visible = true;
   shell.castShadow = solid;
   for (const material of shellMaterials) {
     material.opacity = opacity;
