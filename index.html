@@ -381,12 +381,17 @@ Promise.all(appearance.map(file => loadImg("appearance/" + file)))
 
 // ---------- barrel liner and gas system (inside the photo body) ----------
 const GAS_Y = -1.0, GAS_Z = 1.75, PORT_X = 20.5, MUZZLE_X = 42.3;
+// Exterior registration of the schematic gas-system drawing.
+const GAS_DRAW_OFFSET = -5;
+const gasDrawing = new THREE.Group();
+gasDrawing.position.x = GAS_DRAW_OFFSET;
+rifle.add(gasDrawing);
 {
   const b = new THREE.Mesh(latheX([[-12.0, 1.05], [-10.4, 1.05], [-10.4, 0.95], [-4, 0.95], [-3, 0.8], [19, 0.8], [21.6, 0.55], [MUZZLE_X - 0.4, 0.55]]), M.barrel);
   b.renderOrder = 1; rifle.add(b);
-  cylX(19.6, 21.4, 1.0, 1.0, M.barrel).renderOrder = 1;                                   // gas block
-  cylX(19.2, 21.7, 0.52, 0.52, M.barrel, rifle, GAS_Y, GAS_Z).renderOrder = 1;           // gas cylinder
-  cylX(21.7, 22.4, 0.58, 0.5, M.steelDark, rifle, GAS_Y, GAS_Z, 8);                      // gas regulator
+  cylX(19.6, 21.4, 1.0, 1.0, M.barrel, gasDrawing).renderOrder = 1;                                   // gas block
+  cylX(19.2, 21.7, 0.52, 0.52, M.barrel, gasDrawing, GAS_Y, GAS_Z).renderOrder = 1;           // gas cylinder
+  cylX(21.7, 22.4, 0.58, 0.5, M.steelDark, gasDrawing, GAS_Y, GAS_Z, 8);                      // gas regulator
 }
 
 // ---------- operating group: carrier, bolt, guide rods ----------
@@ -399,7 +404,7 @@ for (const s of [1, -1]) {
   const z = s * GAS_Z;
   box(-15.6, -13.4, -0.75, 0.0, Math.min(s * 1.2, s * 2.25), Math.max(s * 1.2, s * 2.25), M.carrier, carrier);
   box(-15.6, -13.4, -1.45, -0.75, Math.min(s * 1.35, s * 2.25), Math.max(s * 1.35, s * 2.25), M.carrier, carrier);
-  cylX(-13.4, 19.0, 0.27, 0.27, M.rod, carrier, GAS_Y, z, 16);          // guide rod
+  cylX(-13.4, 14.0, 0.27, 0.27, M.rod, carrier, GAS_Y, z, 16);          // guide rod
   cylX(8.5, 9.0, 0.42, 0.42, M.rod, carrier, GAS_Y, z, 16);             // spring collar
   box(-2.5, -2.1, GAS_Y - 0.55, GAS_Y + 0.55, z - 0.55, z + 0.55, M.steelDark); // fixed spring seat
 }
@@ -410,7 +415,7 @@ for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2, l = box(-11.6, -11.
 box(-12.3, -11.0, -0.12, 0.12, 0.55, 0.72, M.steelDark, bolt);        // extractor
 const springGeo = helixGeo(20, 0.42, 0.055);
 const retSprings = [1, -1].map((s) => { const m = new THREE.Mesh(springGeo, M.spring); m.position.set(-2.1, GAS_Y, s * GAS_Z); rifle.add(m); return m; });
-const piston = cylX(19.3, 20.9, 0.32, 0.32, M.piston, rifle, GAS_Y, GAS_Z, 16);
+const piston = cylX(19.3, 20.9, 0.32, 0.32, M.piston, gasDrawing, GAS_Y, GAS_Z, 16);
 const PISTON_X = piston.position.x;
 
 // ---------- hammer pack in the butt ----------
@@ -489,8 +494,8 @@ const muzzle = new THREE.Group(); muzzle.position.set(MUZZLE_X + 0.3, 0, 0); rif
 const muzzleLight = new THREE.PointLight(0xffb060, 0, 60); muzzleLight.position.set(MUZZLE_X + 1.5, 0, 0); rifle.add(muzzleLight);
 const primer = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 10), glow(0xffd27a)); primer.position.set(-10.6, 0, 0); rifle.add(primer);
 const boreGas = new THREE.Mesh(unitX(0.3), glow(GAS_COL)); boreGas.position.set(-6.6, 0, 0); rifle.add(boreGas);
-const portGas = new THREE.Mesh(new THREE.SphereGeometry(0.75, 12, 10), glow(GAS_COL)); portGas.position.set(PORT_X, GAS_Y / 2, GAS_Z / 2); rifle.add(portGas);
-const cylGas = new THREE.Mesh(unitX(0.42), glow(GAS_COL)); cylGas.position.set(0, GAS_Y, GAS_Z); rifle.add(cylGas);
+const portGas = new THREE.Mesh(new THREE.SphereGeometry(0.75, 12, 10), glow(GAS_COL)); portGas.position.set(PORT_X, GAS_Y / 2, GAS_Z / 2); gasDrawing.add(portGas);
+const cylGas = new THREE.Mesh(unitX(0.42), glow(GAS_COL)); cylGas.position.set(0, GAS_Y, GAS_Z); gasDrawing.add(cylGas);
 for (const m of [boreGas, portGas, cylGas, primer]) m.renderOrder = 6;
 
 // ---------- the firing cycle as one timeline ----------
@@ -690,8 +695,8 @@ const LABELS = {
   carrier: ["Bolt carrier", () => [-19 - S.d, 1.5, 0.6], -4, -92],
   bolt: ["Rotating bolt", () => [S.bf - 0.5, 0.6, 0.5], 52, -66],
   guide: ["Guide rod and return spring", () => [3, GAS_Y, GAS_Z], 10, -78],
-  piston: ["Gas piston", () => [PISTON_X - S.piston, GAS_Y, GAS_Z], -34, -62],
-  gas: ["Gas port", () => [PORT_X, -0.5, 0.9], 56, -46],
+  piston: ["Gas piston", () => [PISTON_X + GAS_DRAW_OFFSET - S.piston, GAS_Y, GAS_Z], -34, -62],
+  gas: ["Gas port", () => [PORT_X + GAS_DRAW_OFFSET, -0.5, 0.9], 56, -46],
   mag: ["Magazine", () => magazineLabel, 72, 16],
   case: ["Cartridge case", () => S.spentOn ? (spent.visible ? [spent.position.x + 2, spent.position.y, spent.position.z] : null) : S.liveOn ? [S.lx + 2.2, S.ly, S.lz + 0.4] : null, 62, 44],
   bullet: ["Bullet", () => S.bulletOn && S.bx < MUZZLE_X + 6 ? [S.bx + 5, 0, 0] : null, 0, -44],
