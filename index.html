@@ -307,6 +307,7 @@ const unitX = (r) => { const g = new THREE.CylinderGeometry(r, r, 1, 16, 1, true
 const PHOTO = { W: 800, H: 300, cm: 0.10509138, zMax: 5.5, muzzlePx: 781.5, axisPx: 120, muzzleX: 42.3 };
 const leftShell = M.shell.clone();
 const shellEdge = new THREE.MeshBasicMaterial({ color: 0x27292d, toneMapped: false });
+const handleFinish = std({ color: 0x343230, roughness: 0.72, metalness: 0.18 });
 const shellMaterials = [M.shell, leftShell, shellEdge];
 const shell = new THREE.Mesh(new THREE.BufferGeometry(), shellMaterials);
 shell.castShadow = true;
@@ -359,14 +360,67 @@ function addExteriorFinish(material, finishes) {
         diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(frontMap, vEnd).rgb, vFinish.w);`);
   };
 }
+// Replace the raised patch in the side scan with the adjacent receiver finish.
+// Coordinates are pixels in the registered 800 × 300 exterior maps.
+function clearHandlePatch(photo, depth) {
+  const canvas = document.createElement("canvas");
+  canvas.width = photo.width;
+  canvas.height = photo.height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(photo, 0, 0);
+  const sx = photo.width / PHOTO.W, sy = photo.height / PHOTO.H;
+  const outline = [[445,96],[452,91],[476,88],[481,91],[479,99],
+    [478,112],[485,118],[485,130],[473,133],[450,133],[448,105]];
+  const path = new Path2D();
+  outline.forEach(([x,y], i) => i ? path.lineTo(x,y) : path.moveTo(x,y));
+  path.closePath();
+  ctx.save();
+  ctx.scale(sx, sy);
+  ctx.clip(path);
+  ctx.drawImage(photo, 54, 0, PHOTO.W, PHOTO.H);
+  ctx.restore();
+  for (let y = 88; y <= 133; ++y) {
+    for (let x = 445; x <= 485; ++x) {
+      if (ctx.isPointInPath(path, x + 0.5, y + 0.5)) {
+        depth[y * PHOTO.W + x] = depth[y * PHOTO.W + x - 54];
+      }
+    }
+  }
+  return canvas;
+}
+
+function addCockingHandle() {
+  // Elliptical sections give the stem a waist and the free end a rolled lip.
+  // The centreline sweeps out from the photograph as the grip rises.
+  const section = [[0,0],[0,0.88],[0.07,1],[0.2,0.83],[0.47,0.61],
+    [0.75,0.65],[0.82,0.74],[0.86,0.98],[0.92,1.04],[0.98,0.95],[1,0.77],[1,0]];
+  const geometry = new THREE.LatheGeometry(section.map(([t,r]) => new THREE.Vector2(r,t)), 40);
+  const points = geometry.attributes.position;
+  for (let i = 0; i < points.count; ++i) {
+    const t = points.getY(i), u = points.getX(i), v = points.getZ(i);
+    points.setXYZ(i, 1.48*u - 0.82*t, 3.58*t + 0.25*u*t,
+      0.62*v - 2.85*t + 0.35*(1-t)*(1-t));
+  }
+  geometry.computeVertexNormals();
+  const grip = new THREE.Mesh(geometry, handleFinish);
+  grip.position.set((468 - PHOTO.muzzlePx) * PHOTO.cm + PHOTO.muzzleX,
+    (PHOTO.axisPx - 128) * PHOTO.cm, -2.15);
+  grip.castShadow = true;
+  grip.renderOrder = shell.renderOrder + 1;
+  shell.add(grip);
+}
+
 const appearance = ["right.webp", "left.webp", "right-relief.png", "left-relief.png", "upper.webp", "lower.webp", "rear.webp", "front.webp"];
 Promise.all(appearance.map(file => loadImg("appearance/" + file)))
 .then(([right, left, rightMap, leftMap, upper, lower, rear, front]) => {
   shell.geometry.dispose();
-  shell.geometry = buildExteriorShell(THREE, PHOTO, readDepth(rightMap), readDepth(leftMap));
+  const leftDepth = readDepth(leftMap);
+  const receiverPhoto = clearHandlePatch(left, leftDepth);
+  shell.geometry = buildExteriorShell(THREE, PHOTO, readDepth(rightMap), leftDepth);
+  addCockingHandle();
   const finishes = { upperMap: colorTexture(upper), lowerMap: colorTexture(lower), rearMap: colorTexture(rear), frontMap: colorTexture(front) };
   shell.userData.finishTextures = Object.values(finishes);
-  for (const [material, image] of [[M.shell, right], [leftShell, left]]) {
+  for (const [material, image] of [[M.shell, right], [leftShell, receiverPhoto]]) {
     material.map = colorTexture(image);
     addExteriorFinish(material, finishes);
     material.needsUpdate = true;
@@ -404,7 +458,8 @@ for (const s of [1, -1]) {
   const z = s * GAS_Z;
   box(-15.6, -13.4, -0.75, 0.0, Math.min(s * 1.2, s * 2.25), Math.max(s * 1.2, s * 2.25), M.carrier, carrier);
   box(-15.6, -13.4, -1.45, -0.75, Math.min(s * 1.35, s * 2.25), Math.max(s * 1.35, s * 2.25), M.carrier, carrier);
-  cylX(-13.4, 14.0, 0.27, 0.27, M.rod, carrier, GAS_Y, z, 16);          // guide rod
+  const rodTip = s < 0 ? 10.5 : 14.0;
+  cylX(-13.4, rodTip, 0.27, 0.27, M.rod, carrier, GAS_Y, z, 16);          // guide rod
   cylX(8.5, 9.0, 0.42, 0.42, M.rod, carrier, GAS_Y, z, 16);             // spring collar
   box(-2.5, -2.1, GAS_Y - 0.55, GAS_Y + 0.55, z - 0.55, z + 0.55, M.steelDark); // fixed spring seat
 }
@@ -751,7 +806,7 @@ function syncBody() {
   shell.visible = shellReady && opacity > 0;
   schematicTrigger.visible = true;
   shell.castShadow = solid;
-  for (const material of shellMaterials) {
+  for (const material of [...shellMaterials, handleFinish]) {
     material.opacity = opacity;
     material.depthWrite = solid;
     if (material.transparent === solid) {
